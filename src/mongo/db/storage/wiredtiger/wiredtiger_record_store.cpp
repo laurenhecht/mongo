@@ -354,7 +354,7 @@ namespace mongo {
                                                    bool tailable,
                                                    const CollectionScanParams::Direction& dir
                                                    ) const {
-        return new Iterator(*this, txn, WiredTigerRecoveryUnit::Get(txn).GetSharedSession(), start, tailable, dir);
+        return new Iterator(*this, txn, start, tailable, dir);
     }
 
 
@@ -500,16 +500,14 @@ namespace mongo {
     WiredTigerRecordStore::Iterator::Iterator(
             const WiredTigerRecordStore& rs,
             OperationContext *txn,
-            shared_ptr<WiredTigerSession> &session,
             const DiskLoc& start,
             bool tailable,
             const CollectionScanParams::Direction& dir )
         : _rs( rs ),
           _txn( txn ),
-          _session( session ),
           _tailable( tailable ),
           _dir( dir ) {
-            _cursor = new WiredTigerCursor(rs.GetURI(), *session);
+            _cursor = new WiredTigerCursor(rs.GetURI(), WiredTigerRecoveryUnit::Get(_txn).GetSession());
             _locate(start, true);
     }
 
@@ -607,9 +605,9 @@ namespace mongo {
             fprintf(stderr, "Updating transaction in Iterator::restoreState\n");
 
             _txn = txn;
-            _session = WiredTigerRecoveryUnit::Get(txn).GetSharedSession();
         }
-        _cursor = new WiredTigerCursor(_rs.GetURI(), *_session);
+        WiredTigerSession &session = WiredTigerRecoveryUnit::Get(_txn).GetSession();
+        _cursor = new WiredTigerCursor(_rs.GetURI(), session);
         if (_savedLoc.isNull())
             _eof = true;
         else

@@ -91,7 +91,6 @@ namespace mongo {
                 public:
                 IndexCursor(const WiredTigerIndex &idx,
                         OperationContext *txn,
-                        shared_ptr<WiredTigerSession> &session,
                         bool forward);
 
                 virtual ~IndexCursor();
@@ -133,7 +132,6 @@ namespace mongo {
 
             private:
                 OperationContext *_txn;
-                shared_ptr<WiredTigerSession> _session;
                 WiredTigerCursor *_cursor;
                 const WiredTigerIndex &_idx;    // Someone else owns this.
                 bool _forward;
