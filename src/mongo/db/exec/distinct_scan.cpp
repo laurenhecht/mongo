@@ -160,6 +160,7 @@ namespace mongo {
 
     void DistinctScan::restoreState(OperationContext* opCtx) {
         ++_commonStats.unyields;
+        _txn = opCtx;
 
         if (_hitEnd || (NULL == _btreeCursor.get())) { return; }
 

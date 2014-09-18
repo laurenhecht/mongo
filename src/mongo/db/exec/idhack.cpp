@@ -136,6 +136,7 @@ namespace mongo {
 
     void IDHackStage::restoreState(OperationContext* opCtx) {
         ++_commonStats.unyields;
+        _txn = opCtx;
     }
 
     void IDHackStage::invalidate(const DiskLoc& dl, InvalidationType type) {

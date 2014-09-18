@@ -114,6 +114,7 @@ namespace mongo {
 
     void TextStage::restoreState(OperationContext* opCtx) {
         ++_commonStats.unyields;
+        _txn = opCtx;
 
         for (size_t i = 0; i < _scanners.size(); ++i) {
             _scanners.mutableVector()[i]->restoreState(opCtx);

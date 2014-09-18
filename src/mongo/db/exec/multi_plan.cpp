@@ -414,6 +414,8 @@ namespace mongo {
     void MultiPlanStage::restoreState(OperationContext* opCtx) {
         if (_failure) return;
 
+        _txn = opCtx;
+
         // this logic is from multi_plan_runner
         // but does it really make sense to operate on
         // the _bestPlan if we've switched to the backup?

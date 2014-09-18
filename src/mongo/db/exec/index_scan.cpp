@@ -251,6 +251,7 @@ namespace mongo {
 
     void IndexScan::restoreState(OperationContext* opCtx) {
         ++_commonStats.unyields;
+        _txn = opCtx;
 
         if (_hitEnd || (NULL == _indexCursor.get())) { return; }
 

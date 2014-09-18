@@ -120,6 +120,7 @@ namespace mongo {
 
     void FetchStage::restoreState(OperationContext* opCtx) {
         ++_commonStats.unyields;
+        _txn = opCtx;
         _child->restoreState(opCtx);
     }
 

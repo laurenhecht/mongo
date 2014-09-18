@@ -166,6 +166,7 @@ namespace mongo {
 
     void CountStage::restoreState(OperationContext* opCtx) {
         ++_commonStats.unyields;
+        _txn = opCtx;
         if (_child.get()) {
             _child->restoreState(opCtx);
         }
