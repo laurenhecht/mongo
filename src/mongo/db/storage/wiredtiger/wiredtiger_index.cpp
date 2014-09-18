@@ -185,7 +185,7 @@ namespace mongo {
             return Status(ErrorCodes::KeyTooLong, msg);
         }
 
-        WiredTigerSession &swrap = WiredTigerRecoveryUnit::Get(txn).GetSession();
+        WiredTigerSession &swrap = WiredTigerRecoveryUnit::Get(txn, _info.ns()).GetSession();
         WiredTigerCursor curwrap(GetURI(), swrap);
         WT_CURSOR *c = curwrap.Get();
 
@@ -204,7 +204,7 @@ namespace mongo {
         invariant(loc.isValid());
         invariant(!hasFieldNames(key));
 
-        WiredTigerSession &swrap = WiredTigerRecoveryUnit::Get(txn).GetSession();
+        WiredTigerSession &swrap = WiredTigerRecoveryUnit::Get(txn, _info.ns()).GetSession();
         WiredTigerCursor curwrap(GetURI(), swrap);
         WT_CURSOR *c = curwrap.Get();
         // TODO: can we avoid a search?
@@ -221,7 +221,7 @@ namespace mongo {
 
     void WiredTigerIndex::fullValidate(OperationContext* txn, long long *numKeysOut) const {
         // TODO check invariants?
-        WiredTigerSession &swrap = WiredTigerRecoveryUnit::Get(txn).GetSession();
+        WiredTigerSession &swrap = WiredTigerRecoveryUnit::Get(txn, _info.ns()).GetSession();
         WiredTigerCursor curwrap(GetURI(), swrap);
         WT_CURSOR *c = curwrap.Get();
         if (!c)
@@ -236,7 +236,7 @@ namespace mongo {
     Status WiredTigerIndex::dupKeyCheck(
             OperationContext* txn, const BSONObj& key, const DiskLoc& loc) {
         invariant(!hasFieldNames(key));
-        WiredTigerSession &swrap = WiredTigerRecoveryUnit::Get(txn).GetSession();
+        WiredTigerSession &swrap = WiredTigerRecoveryUnit::Get(txn, _info.ns()).GetSession();
         WiredTigerCursor curwrap(GetURI(), swrap);
         WT_CURSOR *c = curwrap.Get();
         if (isDup(c, key, loc))
@@ -245,7 +245,7 @@ namespace mongo {
     }
 
     bool WiredTigerIndex::isEmpty(OperationContext* txn) {
-        WiredTigerSession &swrap = WiredTigerRecoveryUnit::Get(txn).GetSession();
+        WiredTigerSession &swrap = WiredTigerRecoveryUnit::Get(txn, _info.ns()).GetSession();
         WiredTigerCursor curwrap(GetURI(), swrap);
         WT_CURSOR *c = curwrap.Get();
         if (!c)
@@ -284,7 +284,7 @@ namespace mongo {
          _idx(idx),
          _forward(forward),
          _eof(true) {
-         _cursor = new WiredTigerCursor(_idx.GetURI(), WiredTigerRecoveryUnit::Get(txn).GetSession());
+         _cursor = new WiredTigerCursor(_idx.GetURI(), WiredTigerRecoveryUnit::Get(txn, _idx._info.ns()).GetSession());
     }
 
     WiredTigerIndex::IndexCursor::~IndexCursor() {
@@ -410,14 +410,14 @@ namespace mongo {
     }
 
     void WiredTigerIndex::IndexCursor::restorePosition( OperationContext *txn ) {
-        WiredTigerSession &session = WiredTigerRecoveryUnit::Get(txn).GetSession();
+        WiredTigerSession &session = WiredTigerRecoveryUnit::Get(txn, _idx._info.ns()).GetSession();
 
         // Update the session handle with our new operation context.
         if (txn != _txn) {
             fprintf(stderr, "Updating transaction in IndexCursor::restorePosition\n");
             _txn = txn;
         }
-         _cursor = new WiredTigerCursor(_idx.GetURI(), session);
+        _cursor = new WiredTigerCursor(_idx.GetURI(), session);
         if (_savedAtEnd) {
             _eof = true;
             return;

@@ -31,6 +31,7 @@
 
 #include "mongo/platform/basic.h"
 
+#include "mongo/db/storage/wiredtiger/wiredtiger_record_store.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_recovery_unit.h"
 
 namespace mongo {
@@ -49,6 +50,13 @@ namespace mongo {
         _ctxCache.clear();
     }
 
+    void WiredTigerDatabase::CloseCursors(const std::string &ns, bool matching) {
+        boost::mutex::scoped_lock lk( _ctxLock );
+        for (ContextVector::iterator i = _ctxCache.begin(); i != _ctxCache.end(); i++) {
+            (*i)->CloseCursors(ns, matching);
+        }
+    }
+
     WiredTigerOperationContext &WiredTigerDatabase::GetContext() {
         {
             boost::mutex::scoped_lock lk( _ctxLock );
@@ -64,9 +72,24 @@ namespace mongo {
 
     void WiredTigerDatabase::ReleaseContext(WiredTigerOperationContext &ctx) {
         // We can't safely keep cursors open across recovery units, so close them now
-        ctx.CloseAllCursors();
+        // ctx.CloseAllCursors();
 
         boost::mutex::scoped_lock lk( _ctxLock );
         _ctxCache.push_back(&ctx);
+    }
+
+    void WiredTigerOperationContext::CloseCursors(const std::string &ns, bool matching) {
+        for (CursorMap::iterator i = _curmap.begin(); i != _curmap.end(); i++) {
+            WT_CURSOR *cursor = i->second;
+            if (!cursor)
+                continue;
+            if (matching ?
+                    WiredTigerRecordStore::_fromURI(i->first) == ns :
+                    WiredTigerRecordStore::_fromURI(i->first) != ns) {
+                int ret = cursor->close(cursor);
+                invariant(ret == 0);
+                i->second = 0;
+            }
+        }
     }
 }

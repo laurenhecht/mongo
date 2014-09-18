@@ -131,7 +131,6 @@ namespace mongo {
             //_loadCollection(swrap, key);
         }
         invariant(ret == WT_NOTFOUND || ret == 0);
-        name();
     }
 
     void WiredTigerDatabaseCatalogEntry::getCollectionNamespaces(
@@ -195,13 +194,14 @@ namespace mongo {
         // Drop the underlying table from WiredTiger
         // XXX use a temporary session for drops: WiredTiger doesn't allow transactional drops
         // and can't deal with rolling back a drop.
-        WiredTigerSession &swrap_real = WiredTigerRecoveryUnit::Get(txn).GetSession();
-        WiredTigerSession swrap(swrap_real.GetDatabase());
+        WiredTigerSession &swrap_real = WiredTigerRecoveryUnit::Get(txn, "").GetSession();
 
         // Close any cached cursors.
-        swrap_real.GetContext().CloseAllCursors();
-        swrap.GetContext().CloseAllCursors();
+        WiredTigerDatabase &db = swrap_real.GetDatabase();
+        db.CloseCursors(ns.toString());
+        swrap_real.GetContext().CloseCursors(ns.toString());
 
+        WiredTigerSession swrap(swrap_real.GetDatabase());
         WT_SESSION *session = swrap.Get();
         int ret = session->drop(session, WiredTigerRecordStore::_getURI(ns).c_str(), "force");
         if (ret != 0)
@@ -285,13 +285,17 @@ namespace mongo {
 
         // XXX use a temporary session for renames: WiredTiger doesn't allow transactional renames
         // and can't deal with rolling back a rename.
-        WiredTigerSession &swrap_real = WiredTigerRecoveryUnit::Get(txn).GetSession();
-        WiredTigerSession swrap(swrap_real.GetDatabase());
-        WT_SESSION *session = swrap.Get();
+        WiredTigerSession &swrap_real = WiredTigerRecoveryUnit::Get(txn, "").GetSession();
+ 
+        // Close any cached cursors
+        WiredTigerDatabase &db = swrap_real.GetDatabase();
+        db.CloseCursors(fromNS.toString());
+        swrap_real.GetContext().CloseCursors(fromNS.toString());
+        db.CloseCursors(toNS.toString());
+        swrap_real.GetContext().CloseCursors(toNS.toString());
 
-        // Close any cached cursors we can...
-        swrap_real.GetContext().CloseAllCursors();
-        swrap.GetDatabase().ClearCache();
+        WiredTigerSession swrap(db);
+        WT_SESSION *session = swrap.Get();
 
         // Rename all indexes in the entry
         std::vector<std::string> names;

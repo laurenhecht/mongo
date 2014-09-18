@@ -17,6 +17,7 @@ namespace mongo {
         WT_CONNECTION *Get() const { return _conn; }
 
         void ClearCache();
+        void CloseCursors(const std::string &ns, bool matching=true);
 
     private:
         WT_CONNECTION *_conn;
@@ -44,7 +45,7 @@ namespace mongo {
         WT_CURSOR *GetCursor(const std::string &uri) {
             WT_CURSOR *c = _curmap[uri];
             if (c) {
-                _curmap.erase(uri);
+                _curmap[uri] = 0;
                 return c;
             }
             int ret = _session->open_cursor(_session, uri.c_str(), NULL, NULL, &c);
@@ -52,8 +53,7 @@ namespace mongo {
             return c;
         }
 
-        void ReleaseCursor(WT_CURSOR *cursor) {
-            const std::string uri(cursor->uri);
+        void ReleaseCursor(const std::string &uri, WT_CURSOR *cursor) {
             if (_curmap[uri]) {
                 int ret = cursor->close(cursor);
                 invariant(ret == 0);
@@ -74,7 +74,8 @@ namespace mongo {
                 _curmap.erase(i);
             }
         }
-    
+        void CloseCursors(const std::string &ns, bool matching=true);
+
     private:
         WiredTigerDatabase &_db;
         WT_SESSION *_session;
@@ -92,7 +93,7 @@ namespace mongo {
         WiredTigerOperationContext &GetContext(void) { return _ctx; }
         WT_SESSION *Get() const { return _ctx.GetSession(); }
         WT_CURSOR *GetCursor(const std::string &uri) { return _ctx.GetCursor(uri); }
-        void ReleaseCursor(WT_CURSOR *c) { _ctx.ReleaseCursor(c); }
+        void ReleaseCursor(const std::string &uri, WT_CURSOR *c) { _ctx.ReleaseCursor(uri, c); }
     
     private:
         WiredTigerDatabase &_db;
@@ -102,13 +103,14 @@ namespace mongo {
     class WiredTigerCursor {
     public:
         WiredTigerCursor(const std::string &uri, WiredTigerSession& session)
-            : _cursor(session.GetCursor(uri)), _session(session) {}
-        ~WiredTigerCursor() { _session.ReleaseCursor(_cursor); }
+            : _uri(uri), _cursor(session.GetCursor(uri)), _session(session) {}
+        ~WiredTigerCursor() { _session.ReleaseCursor(_uri, _cursor); }
 
         WiredTigerSession &GetSession(void) { return _session; }
         WT_CURSOR *Get() const { return _cursor; }
     
     private:
+        const std::string _uri;
         WT_CURSOR *_cursor;
         WiredTigerSession &_session;
     };

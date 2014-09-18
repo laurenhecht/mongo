@@ -178,13 +178,14 @@ namespace mongo {
                                                           const StringData& idxName ) {
         // XXX use a temporary session for creates: WiredTiger doesn't allow transactional creates
         // and can't deal with rolling back a creates.
-        WiredTigerSession &swrap_real = WiredTigerRecoveryUnit::Get(txn).GetSession();
-        WiredTigerSession swrap(swrap_real.GetDatabase());
+        WiredTigerSession &swrap_real = WiredTigerRecoveryUnit::Get(txn, "").GetSession();
 
-        // Close and cached cursors
-        swrap_real.GetContext().CloseAllCursors();
-        swrap.GetContext().CloseAllCursors();
+        // Close cached cursors on this namespace
+        WiredTigerDatabase &db = swrap_real.GetDatabase();
+        db.CloseCursors(ns().toString());
+        swrap_real.GetContext().CloseCursors(ns().toString());
 
+        WiredTigerSession swrap(db);
         WT_SESSION *session = swrap.Get();
         int ret = session->drop(session, WiredTigerIndex::_getURI(ns().toString(), idxName.toString()).c_str(), "force");
         invariant(ret == 0);

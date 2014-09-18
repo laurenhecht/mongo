@@ -80,17 +80,16 @@ namespace mongo {
         invariant(c != NULL);
 
         const char *uri;
-        size_t end;
         int ret;
         // Find all tables with unique prefixes.
         while ((ret = c->next(c)) == 0) {
             c->get_key(c, &uri);
             StringData uri_str(uri);
-            // Only look at tables that, skip indexes. All URIs should have a 
-            // period character, but check to be sure.
+            // Only look at collections, skip indexes.
+            // All URIs should have a period character, but check to be sure.
             if (!uri_str.startsWith("table:") ||
                 uri_str.find('$') != std::string::npos ||
-                (end = uri_str.find('.')) == std::string::npos)
+                uri_str.find('.') == std::string::npos)
                 continue;
 
             // Extract the database name.

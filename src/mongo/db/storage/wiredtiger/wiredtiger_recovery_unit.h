@@ -116,8 +116,11 @@ namespace mongo {
             return _session;
         }
 
-        static WiredTigerRecoveryUnit& Get(OperationContext *txn) {
-            return *dynamic_cast<WiredTigerRecoveryUnit*>(txn->recoveryUnit());
+        static WiredTigerRecoveryUnit& Get(OperationContext *txn, const std::string &ns) {
+            WiredTigerRecoveryUnit &ru = *dynamic_cast<WiredTigerRecoveryUnit*>(txn->recoveryUnit());
+            if (!ru._begun)
+                ru._session.GetContext().CloseCursors(ns, false);
+            return ru;
         }
 
     private:
