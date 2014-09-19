@@ -351,11 +351,6 @@ namespace {
                (ms == MemberState::RS_ROLLBACK))) {
             return false;
         }
-        // 2 is the oldest oplog version where operations
-        // are fully idempotent.
-        if (theReplSet->oplogVersion < 2) {
-            return false;
-        }
         // Never ignore _id index
         if (idx->isIdIndex()) {
             return false;
@@ -447,6 +442,14 @@ namespace {
         theReplSet->changeState(newState);
     }
 
+    bool LegacyReplicationCoordinator::isWaitingForApplierToDrain() {
+        // TODO
+        return false;
+    }
+
+    void LegacyReplicationCoordinator::signalDrainComplete() {
+    }
+
     void LegacyReplicationCoordinator::prepareReplSetUpdatePositionCommand(
             OperationContext* txn,
             BSONObjBuilder* cmdBuilder) {
@@ -529,6 +532,10 @@ namespace {
             }
         }
         return Status::OK();
+    }
+
+    bool LegacyReplicationCoordinator::getMaintenanceMode() {
+        return theReplSet->getMaintenanceMode();
     }
 
     Status LegacyReplicationCoordinator::processHeartbeat(const ReplSetHeartbeatArgs& args,
