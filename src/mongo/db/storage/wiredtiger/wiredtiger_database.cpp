@@ -37,8 +37,7 @@
 
 namespace mongo {
     WiredTigerDatabase::WiredTigerDatabase(WT_CONNECTION *conn)
-        : _conn(conn)
-    {
+        : _conn(conn), _sessionCache( conn ) {
         _metaData = new WiredTigerMetaData();
         InitMetaData();
     }
@@ -53,31 +52,7 @@ namespace mongo {
     }
 
     void WiredTigerDatabase::ClearCache() {
-        boost::mutex::scoped_lock lk( _ctxLock );
-        for (ContextVector::iterator i = _ctxCache.begin(); i != _ctxCache.end(); i++)
-            delete (*i);
-        _ctxCache.clear();
-    }
-
-    WiredTigerOperationContext &WiredTigerDatabase::GetContext() {
-        {
-            boost::mutex::scoped_lock lk( _ctxLock );
-            if (!_ctxCache.empty()) {
-                WiredTigerOperationContext &ctx = *_ctxCache.back();
-                _ctxCache.pop_back();
-                return ctx;
-            }
-        }
-
-        return *new WiredTigerOperationContext(*this);
-    }
-
-    void WiredTigerDatabase::ReleaseContext(WiredTigerOperationContext &ctx) {
-        // We can't safely keep cursors open across recovery units, so close them now
-        ctx.CloseAllCursors();
-
-        boost::mutex::scoped_lock lk( _ctxLock );
-        _ctxCache.push_back(&ctx);
+        _sessionCache.closeAll();
     }
 
     void WiredTigerDatabase::InitMetaData() {

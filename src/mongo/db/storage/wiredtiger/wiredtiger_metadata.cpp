@@ -52,22 +52,21 @@ namespace mongo {
     const uint64_t WiredTigerMetaData::INVALID_METADATA_IDENTIFIER =
                                          std::numeric_limits<uint64_t>::max();
 
-    WiredTigerMetaData::WiredTigerMetaData( ) : _nextId( 1 ), _isInitialized( false )
-    {
+    WiredTigerMetaData::WiredTigerMetaData( ) : _nextId( 1 ) {
     }
 
-    WiredTigerMetaData::~WiredTigerMetaData()
-    {
+    WiredTigerMetaData::~WiredTigerMetaData() {
         // Free up our in-memory structure
     }
 
     void WiredTigerMetaData::initialize( WiredTigerDatabase &db )
     {
         boost::mutex::scoped_lock lk( _metaDataLock );
-        if ( _isInitialized )
+        if ( _session )
             return;
-        WiredTigerSession swrap(db);
-        WT_SESSION *s(swrap.Get());
+
+        WiredTigerSession* session = db.getSessionCache()->getSession();
+        WT_SESSION* s = session->getSession();
 
         // Open a cursor on the metadata table. The metadata cursor is special - don't go
         // through the regular WiredTigerCursor API.
@@ -83,7 +82,8 @@ namespace mongo {
             invariant( ret == 0 );
             _nextId = 1;
         }
-        _isInitialized = true;
+
+        _session.reset( session );
     }
 
     std::string WiredTigerMetaData::getTableName(uint64_t identifier)
@@ -262,18 +262,19 @@ namespace mongo {
         uint64_t identifier, max_id;
         const char *cTableName, *cURI;
         bool isIndex;
+        bool isDeleted;
         const char *config;
         max_id = 0;
         while ( _metaDataCursor->next(_metaDataCursor) == 0 )
         {
             _metaDataCursor->get_key(_metaDataCursor, &identifier);
-            _metaDataCursor->get_value(_metaDataCursor, &cTableName, &cURI, &isIndex, &config);
+            _metaDataCursor->get_value(_metaDataCursor, &cTableName, &cURI, &isIndex, &isDeleted, &config);
             BSONObj b( fromjson(std::string(config)));
 
             std::string tableName(cTableName);
             std::string uri(cURI);
             _tables.insert( std::pair<uint64_t, MetaDataEntry>( identifier, 
-                MetaDataEntry(tableName, uri, b, isIndex, false) ) );
+                MetaDataEntry(tableName, uri, b, isIndex, isDeleted) ) );
             if (identifier > max_id)
                 max_id = identifier;
         }

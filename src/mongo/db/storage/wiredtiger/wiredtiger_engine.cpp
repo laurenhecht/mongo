@@ -40,6 +40,7 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_recovery_unit.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_global_options.h"
 
+#include "mongo/db/operation_context_noop.h"
 #include "mongo/db/storage_options.h"
 #include "mongo/util/log.h"
 
@@ -75,6 +76,8 @@ namespace mongo {
 
         _db->DropDeletedTables();
 
+        OperationContextNoop txn( newRecoveryUnit( NULL ) );
+
         WiredTigerMetaData &md = _db->GetMetaData();
         std::vector<uint64_t> tables = md.getAllTables();
         for ( std::vector<uint64_t>::iterator it = tables.begin(); it != tables.end(); ++it) {
@@ -85,7 +88,7 @@ namespace mongo {
             if (_dbs[dbName])
                 continue;
 
-            _dbs[dbName] = new WiredTigerDatabaseCatalogEntry( *_db, dbName );
+            _dbs[dbName] = new WiredTigerDatabaseCatalogEntry( &txn, *_db, dbName );
         }
 
     }
@@ -115,7 +118,7 @@ namespace mongo {
         DBMap::iterator i = _dbs.find(dbName.toString());
         /* Open if not found: even closed databases need to be dropped. */
         if (i == _dbs.end())
-            entry = new WiredTigerDatabaseCatalogEntry( *_db, dbName );
+            entry = new WiredTigerDatabaseCatalogEntry( txn, *_db, dbName );
         else {
             entry = i->second;
             _dbs.erase( i );
@@ -132,13 +135,13 @@ namespace mongo {
         DBMap::const_iterator i = _dbs.find(dbName.toString());
         if (i != _dbs.end())
             return i->second;
-        WiredTigerDatabaseCatalogEntry *entry = new WiredTigerDatabaseCatalogEntry( *_db, dbName );
+        WiredTigerDatabaseCatalogEntry *entry = new WiredTigerDatabaseCatalogEntry( txn, *_db, dbName );
         _dbs[dbName.toString()] = entry;
         return entry;
     }
 
     RecoveryUnit* WiredTigerEngine::newRecoveryUnit( OperationContext* txn ) {
         invariant(_db);
-        return new WiredTigerRecoveryUnit(*_db, true);
+        return new WiredTigerRecoveryUnit(_db->getSessionCache(), true);
     }
 }

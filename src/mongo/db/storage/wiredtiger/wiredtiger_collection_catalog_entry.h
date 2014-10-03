@@ -43,10 +43,14 @@ namespace mongo {
 
     class WiredTigerCollectionCatalogEntry : public CollectionCatalogEntry {
     public:
-        WiredTigerCollectionCatalogEntry(
-                const StringData& ns, const CollectionOptions& options );
-        WiredTigerCollectionCatalogEntry(
-            WiredTigerDatabase& db, const StringData& ns, bool stayTemp = false);
+        WiredTigerCollectionCatalogEntry( WiredTigerDatabase& db,
+                                          const StringData& ns,
+                                          const CollectionOptions& options );
+
+        WiredTigerCollectionCatalogEntry( OperationContext* txn,
+                                          WiredTigerDatabase& db,
+                                          const StringData& ns,
+                                          bool stayTemp = false);
         virtual ~WiredTigerCollectionCatalogEntry();
 
         int getTotalIndexCount( OperationContext* txn ) const;
@@ -107,6 +111,8 @@ namespace mongo {
             scoped_ptr<RecordStore> rs;
             shared_ptr<void> data;
         };
+
+        WiredTigerDatabase& _db;
         // Not currently used, but needed to implement interface.
         BSONCollectionCatalogEntry::MetaData _metaData;
     public:

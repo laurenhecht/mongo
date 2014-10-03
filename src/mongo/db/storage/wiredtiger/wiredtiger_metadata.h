@@ -28,7 +28,7 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
- 
+
 #pragma once
 
 #include <list>
@@ -36,9 +36,11 @@
 #include <string>
 
 #include <boost/thread/mutex.hpp>
-#include "mongo/platform/atomic_word.h"
 
-#include "mongo/db/storage/wiredtiger/wiredtiger_record_store.h"
+#include "mongo/bson/bsonobj.h"
+#include "mongo/platform/atomic_word.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_engine.h"
+
 
 namespace mongo {
     class WiredTigerDatabase;
@@ -109,8 +111,9 @@ namespace mongo {
 
         typedef std::map<uint64_t, MetaDataEntry> WiredTigerMetaDataMap;
         WiredTigerMetaDataMap _tables;
+        boost::scoped_ptr<WiredTigerSession> _session;
         WT_CURSOR *_metaDataCursor;
         bool _isInitialized;
         mutable boost::mutex _metaDataLock;
-	};
+    };
 }

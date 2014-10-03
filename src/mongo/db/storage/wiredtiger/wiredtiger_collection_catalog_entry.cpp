@@ -40,19 +40,23 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_metadata.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_record_store.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_recovery_unit.h"
+#include "mongo/util/log.h"
 
 namespace mongo {
 
-    WiredTigerCollectionCatalogEntry::WiredTigerCollectionCatalogEntry(
-        const StringData& ns, const CollectionOptions& o )
-        : CollectionCatalogEntry( ns ), options( o ) {
+    WiredTigerCollectionCatalogEntry::WiredTigerCollectionCatalogEntry( WiredTigerDatabase& db,
+                                                                        const StringData& ns,
+                                                                        const CollectionOptions& o )
+        : CollectionCatalogEntry( ns ), options( o ), _db( db ) {
     }
 
     // Constructor for a catalog entry that loads information from
     // an existing collection.
-    WiredTigerCollectionCatalogEntry::WiredTigerCollectionCatalogEntry(
-        WiredTigerDatabase& db, const StringData& ns, bool stayTemp)
-        : CollectionCatalogEntry ( ns ), options() {
+    WiredTigerCollectionCatalogEntry::WiredTigerCollectionCatalogEntry(OperationContext* ctx,
+                                                                       WiredTigerDatabase& db,
+                                                                       const StringData& ns,
+                                                                       bool stayTemp)
+        : CollectionCatalogEntry ( ns ), options(), _db( db ) {
 
         WiredTigerMetaData &md = db.GetMetaData();
         uint64_t tblIdentifier = md.getIdentifier( ns.toString() );
@@ -60,13 +64,12 @@ namespace mongo {
         BSONObj b = md.getConfig( tblIdentifier );
 
         // Open the WiredTiger metadata so we can retrieve saved options.
-        WiredTigerSession swrap(db);
 
         // Create the collection
         options.parse(b);
-		if (!stayTemp)
-			options.temp = false;
-        WiredTigerRecordStore *wtRecordStore = new WiredTigerRecordStore( ns, swrap.GetDatabase() );
+        if (!stayTemp)
+            options.temp = false;
+        WiredTigerRecordStore *wtRecordStore = new WiredTigerRecordStore( ctx, ns, tbl_uri );
         if ( options.capped )
             wtRecordStore->setCapped(options.cappedSize ? options.cappedSize : 4096,
                 options.cappedMaxDocs ? options.cappedMaxDocs : -1);
@@ -162,21 +165,20 @@ namespace mongo {
                                                           const StringData& idxName ) {
         // XXX use a temporary session for creates: WiredTiger doesn't allow transactional creates
         // and can't deal with rolling back a creates.
-        WiredTigerSession &swrap_real = WiredTigerRecoveryUnit::Get(txn).GetSession();
-        WiredTigerSession swrap(swrap_real.GetDatabase());
+        WiredTigerRecoveryUnit::Get(txn).getSession()->closeAllCursors();
 
-        // Close any cached cursors
-        swrap_real.GetContext().CloseAllCursors();
-        swrap.GetContext().CloseAllCursors();
+        WiredTigerRecoveryUnit session_temp( _db.getSessionCache(), false );
+        session_temp.getSession()->closeAllCursors();
 
-        WiredTigerMetaData &md = swrap_real.GetDatabase().GetMetaData();
-        uint64_t identifier = md.getIdentifier(
-                    WiredTigerIndex::toTableName( ns().toString(), idxName.toString() ) );
+        WiredTigerMetaData &md = _db.GetMetaData();
+        uint64_t identifier = md.getIdentifier(WiredTigerIndex::toTableName( ns().toString(),
+                                                                             idxName.toString() ) );
         std::string uri = md.getURI( identifier );
-        WT_SESSION *session = swrap.Get();
+        WT_SESSION *session = session_temp.getSession()->getSession();
         int ret = session->drop(session, uri.c_str(), "force");
         indexes.erase( idxName.toString() );
         md.remove( identifier, ret != 0 );
+        log() << "removeIndex " << ns() << " " << idxName << " " << uri << " " << ret;
         return Status::OK();
     }
 
