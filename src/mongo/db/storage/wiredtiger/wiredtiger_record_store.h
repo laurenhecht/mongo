@@ -46,8 +46,7 @@ namespace mongo {
 
     class WiredTigerRecordStore : public RecordStore {
     public:
-        static string generateCreateString(const StringData& ns,
-                                           const CollectionOptions &options,
+        static string generateCreateString(const CollectionOptions &options,
                                            const StringData& extraStrings );
 
         WiredTigerRecordStore(OperationContext* txn,

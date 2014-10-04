@@ -45,9 +45,8 @@
 
 namespace mongo {
 
-    std::string WiredTigerRecordStore::generateCreateString(const StringData& ns,
-                                                       const CollectionOptions& options,
-                                                       const StringData& extraStrings ) {
+    std::string WiredTigerRecordStore::generateCreateString( const CollectionOptions& options,
+                                                             const StringData& extraStrings ) {
         // Separate out a prefix and suffix in the default string. User configuration will
         // override values in the prefix, but not values in the suffix.
         std::stringstream ss;

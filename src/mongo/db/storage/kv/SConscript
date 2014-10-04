@@ -1,0 +1,9 @@
+Import("env")
+
+env.Library(
+    target='kv_engine_test_harness',
+    source=[
+        'kv_engine_test_harness.cpp',
+        ],
+    LIBDEPS=[]
+    )

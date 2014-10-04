@@ -61,9 +61,7 @@ namespace mongo {
             WiredTigerRecoveryUnit* ru = new WiredTigerRecoveryUnit( _sessionCache, false );
             OperationContextNoop txn( ru );
             string uri = "table:a.b";
-            std::string config = WiredTigerRecordStore::generateCreateString( ns,
-                                                                              CollectionOptions(),
-                                                                              "" );
+            std::string config = WiredTigerRecordStore::generateCreateString(CollectionOptions(), "");
 
             WT_SESSION* s = ru->getSession()->getSession();
             invariantWTOK( s->create( s, uri.c_str(), config.c_str() ) );
