@@ -526,11 +526,22 @@ namespace mongo {
             ret = c->search(c);
         }
         else {
-            // Inexact matches should find the largest record less than or equal to the search key.
+            // If loc doesn't exist, inexact matches should find the first existing record before
+            // it, in the direction of the scan. Note that inexact callers will call _getNext()
+            // after locate so they actually return the record *after* the one we seek to.
             int cmp;
             ret = c->search_near(c, &cmp);
-            if (ret == 0 && cmp > 0)
-                ret = c->prev(c);
+            invariantWTOK(ret);
+            if (_forward()) {
+                // return <= loc
+                if (cmp > 0)
+                    ret = c->prev(c);
+            }
+            else {
+                // return >= loc
+                if (cmp < 0)
+                    ret = c->next(c);
+            }
         }
         if (ret != WT_NOTFOUND) invariantWTOK(ret);
         _eof = (ret == WT_NOTFOUND);
@@ -593,6 +604,11 @@ namespace mongo {
     void WiredTigerRecordStore::Iterator::invalidate( const DiskLoc& dl ) {
         if ( _savedLoc == dl )
             _savedInvalidated = true;
+
+        // This is the case where a capped collection wraps around completely while a tailable
+        // cursor was at the old end.
+        if (_tailable && _savedLoc.isNull() && dl == _lastLoc)
+            _savedInvalidated = true;
     }
 
     void WiredTigerRecordStore::Iterator::saveState() {
@@ -605,6 +621,13 @@ namespace mongo {
     }
 
     bool WiredTigerRecordStore::Iterator::restoreState( OperationContext *txn ) {
+        // Iterators over capped collections cannot be restored if they are invalidated. We want to
+        // signal an error if the deletion of old records catches up to the cursor rather than
+        // silently dropping results.
+        if (_savedInvalidated && _rs.isCapped()) {
+            return false;
+        }
+
         // This is normally already the case, but sometimes we are given a new
         // OperationContext on restore - update the iterators context in that
         // case
