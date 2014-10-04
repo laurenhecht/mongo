@@ -33,7 +33,7 @@
 
 #include <wiredtiger.h>
 
-#include <auto_ptr.h>
+#include <memory.h>
 
 #include <boost/scoped_ptr.hpp>
 #include <boost/shared_ptr.hpp>

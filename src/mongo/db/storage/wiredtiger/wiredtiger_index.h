@@ -40,7 +40,7 @@
 
 namespace mongo {
     class IndexCatalogEntry;
-    class WiredTigerItem;
+    struct WiredTigerItem;
 
     class WiredTigerIndex : public SortedDataInterface {
         public:
