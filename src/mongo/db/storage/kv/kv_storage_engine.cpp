@@ -2,6 +2,7 @@
 
 #include "mongo/db/storage/kv/kv_storage_engine.h"
 
+#include "mongo/db/operation_context_noop.h"
 #include "mongo/db/storage/kv/kv_database_catalog_entry.h"
 #include "mongo/db/storage/kv/kv_engine.h"
 #include "mongo/util/log.h"
@@ -15,7 +16,20 @@ namespace mongo {
     }
 
     void KVStorageEngine::finishInit() {
-        // todo
+        if ( _initialized )
+            return;
+
+        OperationContextNoop opCtx( _engine->newRecoveryUnit() );
+        WriteUnitOfWork uow( &opCtx );
+
+        Status status = _engine->createRecordStore( &opCtx, "catalog", CollectionOptions() );
+        fassert( 28520, status );
+
+        _catalogRecordStore.reset( _engine->getRecordStore( &opCtx, "catalog", "catalog" ) );
+        _catalog.reset( new KVCatalog( _catalogRecordStore.get() ) );
+        _catalog->init( &opCtx );
+        uow.commit();
+
         _initialized = true;
     }
 
@@ -40,7 +54,7 @@ namespace mongo {
         boost::mutex::scoped_lock lk( _dbsLock );
         KVDatabaseCatalogEntry*& db = _dbs[dbName.toString()];
         if ( !db ) {
-            db = new KVDatabaseCatalogEntry( dbName, _engine.get() );
+            db = new KVDatabaseCatalogEntry( dbName, this );
         }
         return db;
     }

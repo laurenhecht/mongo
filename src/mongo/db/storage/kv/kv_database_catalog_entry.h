@@ -12,11 +12,12 @@
 
 namespace mongo {
 
-    class KVEngine;
+    class KVCollectionCatalogEntry;
+    class KVStorageEngine;
 
     class KVDatabaseCatalogEntry : public DatabaseCatalogEntry {
     public:
-        KVDatabaseCatalogEntry( const StringData& db, KVEngine* engine );
+        KVDatabaseCatalogEntry( const StringData& db, KVStorageEngine* engine );
         virtual ~KVDatabaseCatalogEntry();
 
         virtual bool exists() const;
@@ -57,10 +58,10 @@ namespace mongo {
                                        const StringData& ns );
 
     private:
-        KVEngine* _engine; // not owned here
+        KVStorageEngine* _engine; // not owned here
         bool _used;
 
-        typedef std::map<std::string,CollectionCatalogEntry*> CollectionMap;
+        typedef std::map<std::string,KVCollectionCatalogEntry*> CollectionMap;
         CollectionMap _collections;
         mutable boost::mutex _collectionsLock;
     };

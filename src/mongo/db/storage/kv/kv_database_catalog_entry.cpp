@@ -2,10 +2,13 @@
 
 #include "mongo/db/storage/kv/kv_database_catalog_entry.h"
 
+#include "mongo/db/storage/kv/kv_collection_catalog_entry.h"
+#include "mongo/db/storage/kv/kv_engine.h"
+#include "mongo/db/storage/kv/kv_storage_engine.h"
 #include "mongo/util/assert_util.h"
 
 namespace mongo {
-    KVDatabaseCatalogEntry::KVDatabaseCatalogEntry( const StringData& db, KVEngine* engine )
+    KVDatabaseCatalogEntry::KVDatabaseCatalogEntry( const StringData& db, KVStorageEngine* engine )
         : DatabaseCatalogEntry( db ), _engine( engine ) {
 
     }
@@ -52,7 +55,11 @@ namespace mongo {
 
     RecordStore* KVDatabaseCatalogEntry::getRecordStore( OperationContext* txn,
                                                          const StringData& ns ) {
-        invariant( false );
+        boost::mutex::scoped_lock lk( _collectionsLock );
+        CollectionMap::const_iterator it = _collections.find( ns.toString() );
+        if ( it == _collections.end() )
+            return NULL;
+        return it->second->getRecordStore();
     }
 
     IndexAccessMethod* KVDatabaseCatalogEntry::getIndex( OperationContext* txn,
@@ -65,7 +72,30 @@ namespace mongo {
                                                      const StringData& ns,
                                                      const CollectionOptions& options,
                                                      bool allocateDefaultSpace ) {
-        invariant( false );
+        // we assume there is a logical lock on the collection name above
+
+        {
+            boost::mutex::scoped_lock lk( _collectionsLock );
+            if ( _collections[ns.toString()] ) {
+                return Status( ErrorCodes::NamespaceExists,
+                               "collection already exists" );
+            }
+        }
+
+        // need to create it
+        Status status = _engine->getCatalog()->newCollection( txn, ns, options );
+        if ( !status.isOK() )
+            return status;
+
+        string ident = _engine->getCatalog()->getCollectionIdent( ns );
+
+        status = _engine->getEngine()->createRecordStore( txn, ident, options );
+        if ( !status.isOK() )
+            return status;
+
+        _collections[ns.toString()] = new KVCollectionCatalogEntry( ns, ident, NULL );
+
+        return Status::OK();
     }
 
     Status KVDatabaseCatalogEntry::renameCollection( OperationContext* txn,
