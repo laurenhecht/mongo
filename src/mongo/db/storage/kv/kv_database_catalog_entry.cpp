@@ -93,7 +93,8 @@ namespace mongo {
         if ( !status.isOK() )
             return status;
 
-        _collections[ns.toString()] = new KVCollectionCatalogEntry( ns, ident, NULL );
+        RecordStore* rs = _engine->getEngine()->getRecordStore( txn, ns, ident );
+        _collections[ns.toString()] = new KVCollectionCatalogEntry( ns, ident, rs );
 
         return Status::OK();
     }
