@@ -8,9 +8,11 @@
 
 namespace mongo {
 
+    class IndexDescriptor;
     class OperationContext;
     class RecordStore;
     class RecoveryUnit;
+    class SortedDataInterface;
 
     class KVEngine {
     public:
@@ -18,6 +20,8 @@ namespace mongo {
         virtual ~KVEngine() {}
 
         virtual RecoveryUnit* newRecoveryUnit() = 0;
+
+        // ---------
 
         /**
          * @param ident Ident is a one time use string. It is used for this instance
@@ -36,8 +40,21 @@ namespace mongo {
                                              const StringData& ns,
                                              const StringData& ident ) = 0;
 
-        virtual Status dropRecordStore( const StringData& ident ) = 0;
+        virtual Status dropRecordStore( OperationContext* opCtx,
+                                        const StringData& ident ) = 0;
 
+        // --------
+
+        virtual Status createSortedDataInterface( OperationContext* opCtx,
+                                                  const StringData& ident,
+                                                  const IndexDescriptor* desc ) = 0;
+
+        virtual SortedDataInterface* getSortedDataInterface( OperationContext* opCtx,
+                                                             const StringData& ident,
+                                                             const IndexDescriptor* desc ) = 0;
+
+        virtual Status dropSortedDataInterface( OperationContext* opCtx,
+                                                const StringData& ident ) = 0;
     };
 
 }

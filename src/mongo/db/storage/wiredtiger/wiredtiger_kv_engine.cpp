@@ -2,6 +2,7 @@
 
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
 
+#include "mongo/db/storage/wiredtiger/wiredtiger_index.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_record_store.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_recovery_unit.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_session_cache.h"
@@ -48,12 +49,33 @@ namespace mongo {
         return new WiredTigerRecordStore( opCtx, ns, _uri( ident ) );
     }
 
-    Status WiredTigerKVEngine::dropRecordStore( const StringData& ident )  {
-        invariant( false );
+    Status WiredTigerKVEngine::dropRecordStore( OperationContext* opCtx,
+                                                const StringData& ident ) {
+        // todo: drop not support yet
+        return Status::OK();
     }
 
     string WiredTigerKVEngine::_uri( const StringData& ident ) const {
         return string("table:") + ident.toString();
+    }
+
+    Status WiredTigerKVEngine::createSortedDataInterface( OperationContext* opCtx,
+                                                          const StringData& ident,
+                                                          const IndexDescriptor* desc ) {
+        string config = ""; // todo: wiredTigerGlobalOptions.indexConfig
+        return wtRCToStatus( WiredTigerIndex::Create( opCtx, _uri( ident ), config, desc ) );
+    }
+
+    SortedDataInterface* WiredTigerKVEngine::getSortedDataInterface( OperationContext* opCtx,
+                                                                     const StringData& ident,
+                                                                     const IndexDescriptor* dexc ) {
+        return new WiredTigerIndex( _uri( ident ) );
+    }
+
+    Status WiredTigerKVEngine::dropSortedDataInterface( OperationContext* opCtx,
+                                                        const StringData& ident ) {
+        // todo: drop not support yet
+        return Status::OK();
     }
 
 }

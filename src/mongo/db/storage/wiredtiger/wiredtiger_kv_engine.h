@@ -4,6 +4,7 @@
 
 #include <wiredtiger.h>
 
+#include "mongo/bson/ordering.h"
 #include "mongo/db/storage/kv/kv_engine.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_session_cache.h"
 
@@ -26,7 +27,20 @@ namespace mongo {
                                              const StringData& ns,
                                              const StringData& ident );
 
-        virtual Status dropRecordStore( const StringData& ident ) ;
+        virtual Status dropRecordStore( OperationContext* opCtx,
+                                        const StringData& ident );
+
+        virtual Status createSortedDataInterface( OperationContext* opCtx,
+                                                  const StringData& ident,
+                                                  const IndexDescriptor* desc );
+
+        virtual SortedDataInterface* getSortedDataInterface( OperationContext* opCtx,
+                                                             const StringData& ident,
+                                                             const IndexDescriptor* desc );
+
+        virtual Status dropSortedDataInterface( OperationContext* opCtx,
+                                                const StringData& ident );
+
     private:
 
         string _uri( const StringData& ident ) const;
