@@ -1,6 +1,16 @@
 Import("env")
 
 env.Library(
+    target='kv_engine',
+    source=[
+        'kv_database_catalog_entry.cpp',
+        'kv_storage_engine.cpp',
+        ],
+    LIBDEPS=[]
+    )
+
+
+env.Library(
     target='kv_engine_test_harness',
     source=[
         'kv_engine_test_harness.cpp',

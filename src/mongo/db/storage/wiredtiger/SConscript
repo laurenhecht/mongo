@@ -51,7 +51,9 @@ if has_option("wiredtiger"):
             'wiredtiger_init.cpp',
             'wiredtiger_options_init.cpp',
             ],
-        LIBDEPS=['storage_wiredtiger_engine']
+        LIBDEPS=['storage_wiredtiger_engine',
+                 '$BUILD_DIR/mongo/db/storage/kv/kv_engine',
+                 ]
         )
 
     env.CppUnitTest(

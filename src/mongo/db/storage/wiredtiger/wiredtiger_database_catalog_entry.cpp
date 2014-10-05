@@ -151,8 +151,7 @@ namespace mongo {
             uint64_t tblIdentifier = md.generateIdentifier( ns.toString(), options.toBSON() );
             std::string newUri = md.getURI( tblIdentifier );
 
-            std::string config = WiredTigerRecordStore::generateCreateString( ns,
-                                                                              options,
+            std::string config = WiredTigerRecordStore::generateCreateString( options,
                                                                               wiredTigerGlobalOptions.collectionConfig );
             int ret = s->create(s, newUri.c_str(), config.c_str());
             invariantWTOK(ret);
