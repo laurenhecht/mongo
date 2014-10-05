@@ -4,6 +4,7 @@
 
 #include "mongo/db/operation_context_noop.h"
 #include "mongo/db/index/index_descriptor.h"
+#include "mongo/db/storage/kv/kv_catalog.h"
 #include "mongo/db/storage/kv/kv_engine.h"
 #include "mongo/db/storage/record_store.h"
 #include "mongo/db/storage/sorted_data_interface.h"
@@ -81,5 +82,48 @@ namespace mongo {
 
     }
 
+    TEST( KVCatalogTest, Coll1 ) {
+        scoped_ptr<KVHarnessHelper> helper( KVHarnessHelper::create() );
+        KVEngine* engine = helper->getEngine();
+
+        scoped_ptr<RecordStore> rs;
+        scoped_ptr<KVCatalog> catalog;
+        {
+            MyOperationContext opCtx( engine );
+            WriteUnitOfWork uow( &opCtx );
+            ASSERT_OK( engine->createRecordStore( &opCtx, "catalog", CollectionOptions() ) );
+            rs.reset( engine->getRecordStore( &opCtx, "catalog", "catalog" ) );
+            catalog.reset( new KVCatalog( rs.get() ) );
+            uow.commit();
+        }
+
+        {
+            MyOperationContext opCtx( engine );
+            WriteUnitOfWork uow( &opCtx );
+            ASSERT_OK( catalog->newCollection( &opCtx, "a.b", CollectionOptions() ) );
+            ASSERT_NOT_EQUALS( "a.b", catalog->getCollectionIdent( "a.b" ) );
+            uow.commit();
+        }
+
+        string ident = catalog->getCollectionIdent( "a.b" );
+        {
+            MyOperationContext opCtx( engine );
+            WriteUnitOfWork uow( &opCtx );
+            catalog.reset( new KVCatalog( rs.get() ) );
+            catalog->init( &opCtx );
+            uow.commit();
+        }
+        ASSERT_EQUALS( ident, catalog->getCollectionIdent( "a.b" ) );
+
+        {
+            MyOperationContext opCtx( engine );
+            WriteUnitOfWork uow( &opCtx );
+            catalog->dropCollection( &opCtx, "a.b" );
+            catalog->newCollection( &opCtx, "a.b", CollectionOptions() );
+            uow.commit();
+        }
+        ASSERT_NOT_EQUALS( ident, catalog->getCollectionIdent( "a.b" ) );
+
+    }
 
 }
