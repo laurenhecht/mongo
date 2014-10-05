@@ -8,7 +8,7 @@
 
 namespace mongo {
     KVStorageEngine::KVStorageEngine( KVEngine* engine )
-        : _engine( engine ) {
+        : _engine( engine ), _initialized( false ) {
     }
 
     KVStorageEngine::~KVStorageEngine() {
@@ -16,13 +16,16 @@ namespace mongo {
 
     void KVStorageEngine::finishInit() {
         // todo
+        _initialized = true;
     }
 
     RecoveryUnit* KVStorageEngine::newRecoveryUnit( OperationContext* opCtx ) {
+        invariant( _initialized );
         return _engine->newRecoveryUnit();
     }
 
     void KVStorageEngine::listDatabases( std::vector<std::string>* out ) const {
+        invariant( _initialized );
         boost::mutex::scoped_lock lk( _dbsLock );
         for ( DBMap::const_iterator it = _dbs.begin(); it != _dbs.end(); ++it ) {
             if ( it->second->isEmpty() )
@@ -33,6 +36,7 @@ namespace mongo {
 
     DatabaseCatalogEntry* KVStorageEngine::getDatabaseCatalogEntry( OperationContext* opCtx,
                                                                     const StringData& dbName ) {
+        invariant( _initialized );
         boost::mutex::scoped_lock lk( _dbsLock );
         KVDatabaseCatalogEntry*& db = _dbs[dbName.toString()];
         if ( !db ) {
@@ -42,11 +46,13 @@ namespace mongo {
     }
 
     Status KVStorageEngine::closeDatabase( OperationContext* txn, const StringData& db ) {
+        invariant( _initialized );
         // todo: do I have to suppor this?
         return Status::OK();
     }
 
     Status KVStorageEngine::dropDatabase( OperationContext* txn, const StringData& db ) {
+        invariant( _initialized );
         invariant( 0 );
     }
 

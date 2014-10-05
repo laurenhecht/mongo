@@ -47,7 +47,7 @@ namespace mongo {
 
     private:
         boost::scoped_ptr<KVEngine> _engine;
-
+        bool _initialized;
         typedef std::map<std::string,KVDatabaseCatalogEntry*> DBMap;
         DBMap _dbs;
         mutable boost::mutex _dbsLock;
