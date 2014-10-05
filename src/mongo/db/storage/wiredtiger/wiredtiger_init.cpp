@@ -43,6 +43,11 @@ namespace mongo {
         public:
             virtual ~WiredTigerFactory(){}
             virtual StorageEngine* create( const StorageGlobalParams& params ) const {
+                WiredTigerKVEngine* kv = new WiredTigerKVEngine( params.dbpath,
+                                                                 wiredTigerGlobalOptions.databaseConfig );
+                kv->setRecordStoreExtraOptions( wiredTigerGlobalOptions.collectionConfig );
+                kv->setSortedDataInterfaceExtraOptions( wiredTigerGlobalOptions.indexConfig );
+
                 return new WiredTigerEngine( params.dbpath );
             }
         };

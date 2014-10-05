@@ -14,8 +14,12 @@ namespace mongo {
 
     class WiredTigerKVEngine : public KVEngine {
     public:
-        WiredTigerKVEngine( const std::string& path );
+        WiredTigerKVEngine( const std::string& path,
+                            const std::string& extraOpenOptions = "" );
         virtual ~WiredTigerKVEngine();
+
+        void setRecordStoreExtraOptions( const std::string& options );
+        void setSortedDataInterfaceExtraOptions( const std::string& options );
 
         virtual RecoveryUnit* newRecoveryUnit();
 
@@ -47,6 +51,10 @@ namespace mongo {
 
         WT_CONNECTION* _conn;
         boost::scoped_ptr<WiredTigerSessionCache> _sessionCache;
+
+        string _rsOptions;
+        string _indexOptions;
+
     };
 
 }

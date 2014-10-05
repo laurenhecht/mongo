@@ -11,8 +11,10 @@
 
 namespace mongo {
 
-    WiredTigerKVEngine::WiredTigerKVEngine( const std::string& path ) {
+    WiredTigerKVEngine::WiredTigerKVEngine( const std::string& path,
+                                            const std::string& extraOpenOptions ) {
         string config = "create,cache_size=1G,extensions=[local=(entry=index_collator_extension)],";
+        config += extraOpenOptions;
 
         invariantWTOK(wiredtiger_open(path.c_str(), NULL, config.c_str(), &_conn));
 
@@ -28,13 +30,20 @@ namespace mongo {
         return new WiredTigerRecoveryUnit( _sessionCache.get(), false );
     }
 
+    void WiredTigerKVEngine::setRecordStoreExtraOptions( const std::string& options ) {
+        _rsOptions = options;
+    }
+
+    void WiredTigerKVEngine::setSortedDataInterfaceExtraOptions( const std::string& options ) {
+        _indexOptions = options;
+    }
+
     Status WiredTigerKVEngine::createRecordStore( OperationContext* opCtx,
                                                   const StringData& ident,
                                                   const CollectionOptions& options ) {
         scoped_ptr<WiredTigerSession> session( _sessionCache->getSession() );
 
-        string extra = ""; // todo: wiredTigerGlobalOptions.collectionConfig );
-        std::string config = WiredTigerRecordStore::generateCreateString( options, extra );
+        std::string config = WiredTigerRecordStore::generateCreateString( options, _rsOptions );
 
         string uri = _uri( ident );
         WT_SESSION* s = session->getSession();
@@ -62,8 +71,7 @@ namespace mongo {
     Status WiredTigerKVEngine::createSortedDataInterface( OperationContext* opCtx,
                                                           const StringData& ident,
                                                           const IndexDescriptor* desc ) {
-        string config = ""; // todo: wiredTigerGlobalOptions.indexConfig
-        return wtRCToStatus( WiredTigerIndex::Create( opCtx, _uri( ident ), config, desc ) );
+        return wtRCToStatus( WiredTigerIndex::Create( opCtx, _uri( ident ), _indexOptions, desc ) );
     }
 
     SortedDataInterface* WiredTigerKVEngine::getSortedDataInterface( OperationContext* opCtx,
