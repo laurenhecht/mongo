@@ -47,6 +47,11 @@ namespace mongo {
                           const StringData& ns,
                           BSONCollectionCatalogEntry::MetaData& md );
 
+        Status renameCollection( OperationContext* opCtx,
+                                 const StringData& fromNS,
+                                 const StringData& toNS,
+                                 bool stayTemp );
+
         Status dropCollection( OperationContext* opCtx,
                                const StringData& ns );
     private:

@@ -157,6 +157,45 @@ namespace mongo {
         invariant( status.getValue() == loc );
     }
 
+    Status KVCatalog::renameCollection( OperationContext* opCtx,
+                                        const StringData& fromNS,
+                                        const StringData& toNS,
+                                        bool stayTemp ) {
+        DiskLoc loc;
+        BSONObj old = _findEntry( opCtx, fromNS, &loc ).getOwned();
+        {
+            BSONObjBuilder b;
+
+            b.append( "ns", toNS );
+
+            BSONCollectionCatalogEntry::MetaData md;
+            md.parse( old["md"].Obj() );
+            md.rename( toNS );
+            if ( !stayTemp )
+                md.options.temp = false;
+            b.append( "md", md.toBSON() );
+
+            b.appendElementsUnique( old );
+
+            BSONObj obj = b.obj();
+            StatusWith<DiskLoc> status = _rs->updateRecord( opCtx,
+                                                            loc,
+                                                            obj.objdata(),
+                                                            obj.objsize(),
+                                                            false,
+                                                            NULL );
+            fassert( 28522, status.getStatus() );
+            invariant( status.getValue() == loc );
+        }
+
+
+        boost::mutex::scoped_lock lk( _identsLock );
+        _idents.erase( fromNS.toString() );
+        _idents[toNS.toString()] = Entry( old["ident"].String(), loc );
+
+        return Status::OK();
+    }
+
     Status KVCatalog::dropCollection( OperationContext* opCtx,
                                       const StringData& ns ) {
         boost::mutex::scoped_lock lk( _identsLock );

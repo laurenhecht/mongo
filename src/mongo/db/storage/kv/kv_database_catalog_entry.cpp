@@ -24,7 +24,10 @@ namespace mongo {
     }
 
     KVDatabaseCatalogEntry::~KVDatabaseCatalogEntry() {
-
+        for ( CollectionMap::const_iterator it = _collections.begin(); it != _collections.end(); ++it ) {
+            delete it->second;
+        }
+        _collections.clear();
     }
 
     bool KVDatabaseCatalogEntry::exists() const {
@@ -134,6 +137,8 @@ namespace mongo {
             return status;
 
         RecordStore* rs = _engine->getEngine()->getRecordStore( txn, ns, ident, options );
+
+        boost::mutex::scoped_lock lk( _collectionsLock );
         _collections[ns.toString()] =
             new KVCollectionCatalogEntry( _engine->getEngine(), _engine->getCatalog(),
                                           ns, ident, rs );
@@ -145,7 +150,35 @@ namespace mongo {
                                                      const StringData& fromNS,
                                                      const StringData& toNS,
                                                      bool stayTemp ) {
-        invariant( false );
+        {
+            boost::mutex::scoped_lock lk( _collectionsLock );
+            CollectionMap::const_iterator it = _collections.find( fromNS.toString() );
+            if ( it == _collections.end() )
+                return Status( ErrorCodes::NamespaceNotFound, "rename cannot find collection" );
+            KVCollectionCatalogEntry* fromEntry = it->second;
+
+            it = _collections.find( toNS.toString() );
+            if ( it != _collections.end() )
+                return Status( ErrorCodes::NamespaceExists, "for rename to already exists" );
+
+            _collections.erase( fromNS.toString() );
+            delete fromEntry;
+        }
+
+        Status status = _engine->getCatalog()->renameCollection( txn, fromNS, toNS, stayTemp );
+        if ( !status.isOK() )
+            return status;
+
+        string ident = _engine->getCatalog()->getCollectionIdent( toNS );
+        BSONCollectionCatalogEntry::MetaData md = _engine->getCatalog()->getMetaData( txn, toNS );
+        RecordStore* rs = _engine->getEngine()->getRecordStore( txn, toNS, ident, md.options );
+
+        boost::mutex::scoped_lock lk( _collectionsLock );
+        _collections[toNS.toString()] =
+            new KVCollectionCatalogEntry( _engine->getEngine(), _engine->getCatalog(),
+                                          toNS, ident, rs );
+
+        return Status::OK();
     }
 
     Status KVDatabaseCatalogEntry::dropCollection( OperationContext* opCtx,

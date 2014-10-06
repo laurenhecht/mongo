@@ -97,6 +97,8 @@ namespace mongo {
              */
             bool eraseIndex( const StringData& name );
 
+            void rename( const StringData& toNS );
+
             std::string ns;
             CollectionOptions options;
             std::vector<IndexMetaData> indexes;
