@@ -31,7 +31,7 @@ namespace mongo {
         {
             MyOperationContext opCtx( engine );
             ASSERT_OK( engine->createRecordStore( &opCtx, ns, CollectionOptions() ) );
-            rs.reset( engine->getRecordStore( &opCtx, ns, ns ) );
+            rs.reset( engine->getRecordStore( &opCtx, ns, ns, CollectionOptions() ) );
             ASSERT( rs );
         }
 
@@ -92,7 +92,7 @@ namespace mongo {
             MyOperationContext opCtx( engine );
             WriteUnitOfWork uow( &opCtx );
             ASSERT_OK( engine->createRecordStore( &opCtx, "catalog", CollectionOptions() ) );
-            rs.reset( engine->getRecordStore( &opCtx, "catalog", "catalog" ) );
+            rs.reset( engine->getRecordStore( &opCtx, "catalog", "catalog", CollectionOptions() ) );
             catalog.reset( new KVCatalog( rs.get() ) );
             uow.commit();
         }
@@ -136,7 +136,7 @@ namespace mongo {
             MyOperationContext opCtx( engine );
             WriteUnitOfWork uow( &opCtx );
             ASSERT_OK( engine->createRecordStore( &opCtx, "catalog", CollectionOptions() ) );
-            rs.reset( engine->getRecordStore( &opCtx, "catalog", "catalog" ) );
+            rs.reset( engine->getRecordStore( &opCtx, "catalog", "catalog", CollectionOptions() ) );
             catalog.reset( new KVCatalog( rs.get() ) );
             uow.commit();
         }

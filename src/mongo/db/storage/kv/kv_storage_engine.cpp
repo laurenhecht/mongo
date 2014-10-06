@@ -25,7 +25,9 @@ namespace mongo {
         Status status = _engine->createRecordStore( &opCtx, "catalog", CollectionOptions() );
         fassert( 28520, status );
 
-        _catalogRecordStore.reset( _engine->getRecordStore( &opCtx, "catalog", "catalog" ) );
+        _catalogRecordStore.reset( _engine->getRecordStore( &opCtx,
+                                                            "catalog", "catalog",
+                                                            CollectionOptions() ) );
         _catalog.reset( new KVCatalog( _catalogRecordStore.get() ) );
         _catalog->init( &opCtx );
         uow.commit();

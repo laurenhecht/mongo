@@ -53,9 +53,17 @@ namespace mongo {
 
     RecordStore* WiredTigerKVEngine::getRecordStore( OperationContext* opCtx,
                                                      const StringData& ns,
-                                                     const StringData& ident ) {
+                                                     const StringData& ident,
+                                                     const CollectionOptions& options ) {
 
-        return new WiredTigerRecordStore( opCtx, ns, _uri( ident ) );
+        WiredTigerRecordStore* rs = new WiredTigerRecordStore( opCtx,
+                                                               ns,
+                                                               _uri( ident ) );
+        if ( options.capped )
+            rs->setCapped(options.cappedSize ? options.cappedSize : 4096,
+                          options.cappedMaxDocs ? options.cappedMaxDocs : -1);
+
+        return rs;
     }
 
     Status WiredTigerKVEngine::dropRecordStore( OperationContext* opCtx,

@@ -29,7 +29,8 @@ namespace mongo {
 
         virtual RecordStore* getRecordStore( OperationContext* opCtx,
                                              const StringData& ns,
-                                             const StringData& ident );
+                                             const StringData& ident,
+                                             const CollectionOptions& options );
 
         virtual Status dropRecordStore( OperationContext* opCtx,
                                         const StringData& ident );

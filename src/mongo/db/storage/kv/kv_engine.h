@@ -38,7 +38,8 @@ namespace mongo {
          */
         virtual RecordStore* getRecordStore( OperationContext* opCtx,
                                              const StringData& ns,
-                                             const StringData& ident ) = 0;
+                                             const StringData& ident,
+                                             const CollectionOptions& options ) = 0;
 
         virtual Status dropRecordStore( OperationContext* opCtx,
                                         const StringData& ident ) = 0;

@@ -54,6 +54,10 @@ namespace mongo {
             BSONObjBuilder b;
             b.append( "ns", ns );
             b.append( "ident", ident );
+            BSONCollectionCatalogEntry::MetaData md;
+            md.ns = ns.toString();
+            md.options = options;
+            b.append( "md", md.toBSON() );
             obj = b.obj();
         }
         StatusWith<DiskLoc> res = _rs->insertRecord( opCtx, obj.objdata(), obj.objsize(), false );

@@ -133,7 +133,7 @@ namespace mongo {
         if ( !status.isOK() )
             return status;
 
-        RecordStore* rs = _engine->getEngine()->getRecordStore( txn, ns, ident );
+        RecordStore* rs = _engine->getEngine()->getRecordStore( txn, ns, ident, options );
         _collections[ns.toString()] =
             new KVCollectionCatalogEntry( _engine->getEngine(), _engine->getCatalog(),
                                           ns, ident, rs );
