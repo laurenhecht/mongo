@@ -13,9 +13,13 @@ namespace mongo {
 
     WiredTigerKVEngine::WiredTigerKVEngine( const std::string& path,
                                             const std::string& extraOpenOptions ) {
-        string config = "create,cache_size=1G,extensions=[local=(entry=index_collator_extension)],";
-        config += extraOpenOptions;
-
+        std::stringstream ss;
+        ss << "create,";
+        ss << "cache_size=1G,";
+        ss << "extensions=[local=(entry=index_collator_extension)],";
+        ss << "log=(enabled),";
+        ss << extraOpenOptions;
+        string config = ss.str();
         invariantWTOK(wiredtiger_open(path.c_str(), NULL, config.c_str(), &_conn));
 
         _sessionCache.reset( new WiredTigerSessionCache( _conn ) );
