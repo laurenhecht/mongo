@@ -24,34 +24,13 @@ if has_option("wiredtiger"):
         )
 
     env.Library(
-        target= 'storage_wiredtiger_engine',
-        source= [
-            'wiredtiger_collection_catalog_entry.cpp',
-            'wiredtiger_database.cpp',
-            'wiredtiger_database_catalog_entry.cpp',
-            'wiredtiger_engine.cpp',
-            'wiredtiger_metadata.cpp',
-            ],
-        LIBDEPS= [
-            'storage_wiredtiger_core',
-            '$BUILD_DIR/mongo/bson',
-            '$BUILD_DIR/mongo/db/catalog/collection_options',
-            '$BUILD_DIR/mongo/index_names',
-            '$BUILD_DIR/mongo/db/storage/index_entry_comparison',
-            '$BUILD_DIR/mongo/foundation',
-            ],
-        SYSLIBDEPS=["wiredtiger"]
-        )
-
-
-    env.Library(
         target='storage_wiredtiger',
         source=[
             'wiredtiger_global_options.cpp',
             'wiredtiger_init.cpp',
             'wiredtiger_options_init.cpp',
             ],
-        LIBDEPS=['storage_wiredtiger_engine',
+        LIBDEPS=['storage_wiredtiger_core',
                  '$BUILD_DIR/mongo/db/storage/kv/kv_engine',
                  ]
         )

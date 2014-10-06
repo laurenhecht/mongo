@@ -34,7 +34,6 @@
 #include "mongo/db/global_environment_d.h"
 #include "mongo/db/global_environment_experiment.h"
 #include "mongo/db/storage/kv/kv_storage_engine.h"
-#include "mongo/db/storage/wiredtiger/wiredtiger_engine.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_global_options.h"
 #include "mongo/db/storage_options.h"
