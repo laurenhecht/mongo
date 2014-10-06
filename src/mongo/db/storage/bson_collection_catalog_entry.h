@@ -77,6 +77,8 @@ namespace mongo {
 
             void updateTTLSetting( long long newExpireSeconds );
 
+            std::string name() const { return spec["name"].String(); }
+
             BSONObj spec;
             bool ready;
             DiskLoc head;

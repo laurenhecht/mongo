@@ -51,7 +51,13 @@ namespace mongo {
 
     Status KVCollectionCatalogEntry::removeIndex( OperationContext* txn,
                                                   const StringData& indexName ) {
-        invariant( false );
+        string ident = _catalog->getIndexIdent( txn, ns().ns(), indexName );
+
+        MetaData md = _getMetaData( txn );
+        md.eraseIndex( indexName );
+        _catalog->putMetaData( txn, ns().toString(), md );
+
+        return _engine->dropSortedDataInterface( txn, ident );
     }
 
     Status KVCollectionCatalogEntry::prepareForIndexBuild( OperationContext* txn,
@@ -60,7 +66,7 @@ namespace mongo {
         md.indexes.push_back( IndexMetaData( spec->infoObj(), false, DiskLoc(), false ) );
         _catalog->putMetaData( txn, ns().toString(), md );
 
-        string ident = _catalog->getIndexIdent( ns().ns(), spec->indexName() );
+        string ident = _catalog->getIndexIdent( txn, ns().ns(), spec->indexName() );
 
         return _engine->createSortedDataInterface( txn, ident, spec );
     }

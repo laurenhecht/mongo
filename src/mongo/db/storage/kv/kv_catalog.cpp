@@ -72,23 +72,33 @@ namespace mongo {
         return it->second.ident;
     }
 
-    std::string KVCatalog::getIndexIdent( const StringData& ns, const StringData& idxName ) const {
-        string a = getCollectionIdent( ns );
-        return a + string("$") + idxName.toString(); // todo, need a unique thing in here
+    std::string KVCatalog::getIndexIdent( OperationContext* opCtx,
+                                          const StringData& ns,
+                                          const StringData& idxName ) const {
+        DiskLoc loc;
+        BSONObj obj = _findEntry( opCtx, ns, &loc );
+        BSONObj idxIdent = obj["idxIdent"].Obj();
+        return idxIdent[idxName].String();
+    }
+
+    BSONObj KVCatalog::_findEntry( OperationContext* opCtx,
+                                   const StringData& ns,
+                                   DiskLoc* out ) const {
+        {
+            boost::mutex::scoped_lock lk( _identsLock );
+            NSToIdentMap::const_iterator it = _idents.find( ns.toString() );
+            invariant( it != _idents.end() );
+            *out = it->second.storedLoc;
+        }
+        LOG(1) << "looking up metadata for: " << ns << " @ " << *out;
+        RecordData data = _rs->dataFor( opCtx, *out );
+        return data.toBson().getOwned();
     }
 
     const BSONCollectionCatalogEntry::MetaData KVCatalog::getMetaData( OperationContext* opCtx,
                                                                        const StringData& ns ) {
         DiskLoc loc;
-        {
-            boost::mutex::scoped_lock lk( _identsLock );
-            NSToIdentMap::const_iterator it = _idents.find( ns.toString() );
-            invariant( it != _idents.end() );
-            loc = it->second.storedLoc;
-        }
-        LOG(1) << "looking up metadata for: " << ns << " @ " << loc;
-        RecordData data = _rs->dataFor( opCtx, loc );
-        BSONObj obj( data.data() );
+        BSONObj obj = _findEntry( opCtx, ns, &loc );
         LOG(1) << " got: " << obj;
         BSONCollectionCatalogEntry::MetaData md;
         if ( obj["md"].isABSONObj() )
@@ -100,18 +110,39 @@ namespace mongo {
                                  const StringData& ns,
                                  BSONCollectionCatalogEntry::MetaData& md ) {
         DiskLoc loc;
+        BSONObj obj = _findEntry( opCtx, ns, &loc );
+
         {
-            boost::mutex::scoped_lock lk( _identsLock );
-            NSToIdentMap::const_iterator it = _idents.find( ns.toString() );
-            invariant( it != _idents.end() );
-            loc = it->second.storedLoc;
+            // rebuilt doc
+            BSONObjBuilder b;
+            b.append( "md", md.toBSON() );
+
+            BSONObjBuilder newIdentMap;
+            BSONObj oldIdentMap;
+            if ( obj["idxIdent"].isABSONObj() )
+                oldIdentMap = obj["idxIdent"].Obj();
+
+            // fix ident map
+            for ( size_t i = 0; i < md.indexes.size(); i++ ) {
+                string name = md.indexes[i].name();
+                BSONElement e = oldIdentMap[name];
+                if ( e.type() == String ) {
+                    newIdentMap.append( e );
+                    continue;
+                }
+                // missing, create new
+                std::stringstream ss;
+                ss << getCollectionIdent( ns ) << '$' << name
+                   << '-' << _rand << '-' << _next.fetchAndAdd( 1 );
+                newIdentMap.append( name, ss.str() );
+            }
+            b.append( "idxIdent", newIdentMap.obj() );
+
+            // add whatever is left
+            b.appendElementsUnique( obj );
+            obj = b.obj();
         }
-        RecordData data = _rs->dataFor( opCtx, loc );
-        BSONObj obj( data.data() );
-        BSONObjBuilder b;
-        b.append( "md", md.toBSON() );
-        b.appendElementsUnique( obj );
-        obj = b.obj();
+
         StatusWith<DiskLoc> status = _rs->updateRecord( opCtx,
                                                         loc,
                                                         obj.objdata(),

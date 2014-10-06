@@ -123,6 +123,76 @@ namespace mongo {
             uow.commit();
         }
         ASSERT_NOT_EQUALS( ident, catalog->getCollectionIdent( "a.b" ) );
+    }
+
+
+    TEST( KVCatalogTest, Idx1 ) {
+        scoped_ptr<KVHarnessHelper> helper( KVHarnessHelper::create() );
+        KVEngine* engine = helper->getEngine();
+
+        scoped_ptr<RecordStore> rs;
+        scoped_ptr<KVCatalog> catalog;
+        {
+            MyOperationContext opCtx( engine );
+            WriteUnitOfWork uow( &opCtx );
+            ASSERT_OK( engine->createRecordStore( &opCtx, "catalog", CollectionOptions() ) );
+            rs.reset( engine->getRecordStore( &opCtx, "catalog", "catalog" ) );
+            catalog.reset( new KVCatalog( rs.get() ) );
+            uow.commit();
+        }
+
+        {
+            MyOperationContext opCtx( engine );
+            WriteUnitOfWork uow( &opCtx );
+            ASSERT_OK( catalog->newCollection( &opCtx, "a.b", CollectionOptions() ) );
+            ASSERT_NOT_EQUALS( "a.b", catalog->getCollectionIdent( "a.b" ) );
+            uow.commit();
+        }
+
+        {
+            MyOperationContext opCtx( engine );
+            WriteUnitOfWork uow( &opCtx );
+
+            BSONCollectionCatalogEntry::MetaData md;
+            md.ns ="a.b";
+            md.indexes.push_back( BSONCollectionCatalogEntry::IndexMetaData( BSON( "name" << "foo" ),
+                                                                             false,
+                                                                             DiskLoc(),
+                                                                             false ) );
+            catalog->putMetaData( &opCtx, "a.b", md );
+            uow.commit();
+        }
+
+        string idxIndent;
+        {
+            MyOperationContext opCtx( engine );
+            idxIndent = catalog->getIndexIdent( &opCtx, "a.b", "foo" );
+        }
+
+        {
+            MyOperationContext opCtx( engine );
+            ASSERT_EQUALS( idxIndent, catalog->getIndexIdent( &opCtx, "a.b", "foo" ) );
+        }
+
+        {
+            MyOperationContext opCtx( engine );
+            WriteUnitOfWork uow( &opCtx );
+
+            BSONCollectionCatalogEntry::MetaData md;
+            md.ns ="a.b";
+            catalog->putMetaData( &opCtx, "a.b", md ); // remove index
+            md.indexes.push_back( BSONCollectionCatalogEntry::IndexMetaData( BSON( "name" << "foo" ),
+                                                                             false,
+                                                                             DiskLoc(),
+                                                                             false ) );
+            catalog->putMetaData( &opCtx, "a.b", md );
+            uow.commit();
+        }
+
+        {
+            MyOperationContext opCtx( engine );
+            ASSERT_NOT_EQUALS( idxIndent, catalog->getIndexIdent( &opCtx, "a.b", "foo" ) );
+        }
 
     }
 

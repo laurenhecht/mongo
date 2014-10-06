@@ -79,7 +79,8 @@ namespace mongo {
 
         const string& type = desc->getAccessMethodName();
 
-        string ident = _engine->getCatalog()->getIndexIdent( collection->ns().ns(),
+        string ident = _engine->getCatalog()->getIndexIdent( txn,
+                                                             collection->ns().ns(),
                                                              desc->indexName() );
 
         SortedDataInterface* sdi =
@@ -149,7 +150,31 @@ namespace mongo {
 
     Status KVDatabaseCatalogEntry::dropCollection( OperationContext* opCtx,
                                                    const StringData& ns ) {
-        invariant( false );
+        KVCollectionCatalogEntry* entry;
+        {
+            boost::mutex::scoped_lock lk( _collectionsLock );
+            CollectionMap::const_iterator it = _collections.find( ns.toString() );
+            if ( it == _collections.end() )
+                return Status( ErrorCodes::NamespaceNotFound, "cannnot find collection to drop" );
+            entry = it->second;
+        }
+
+        invariant( entry->getTotalIndexCount( opCtx ) == 0 );
+
+        string ident = _engine->getCatalog()->getCollectionIdent( ns );
+
+        Status status = _engine->getEngine()->dropRecordStore( opCtx, ident );
+        if ( !status.isOK() )
+            return status;
+
+        status = _engine->getCatalog()->dropCollection( opCtx, ns );
+        if ( !status.isOK() )
+            return status;
+
+        boost::mutex::scoped_lock lk( _collectionsLock );
+        _collections.erase( ns.toString() );
+
+        return Status::OK();
     }
 
 }

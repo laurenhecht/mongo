@@ -124,7 +124,7 @@ namespace mongo {
 
     int BSONCollectionCatalogEntry::MetaData::findIndexOffset( const StringData& name ) const {
         for ( unsigned i = 0; i < indexes.size(); i++ )
-            if ( indexes[i].spec["name"].String() == name )
+            if ( indexes[i].name() == name )
                 return i;
         return -1;
     }

@@ -37,7 +37,9 @@ namespace mongo {
 
         std::string getCollectionIdent( const StringData& ns ) const;
 
-        std::string getIndexIdent( const StringData& ns, const StringData& idName ) const;
+        std::string getIndexIdent( OperationContext* opCtx,
+                                   const StringData& ns,
+                                   const StringData& idName ) const;
 
         const BSONCollectionCatalogEntry::MetaData getMetaData( OperationContext* opCtx,
                                                                 const StringData& ns );
@@ -48,6 +50,10 @@ namespace mongo {
         Status dropCollection( OperationContext* opCtx,
                                const StringData& ns );
     private:
+
+        BSONObj _findEntry( OperationContext* opCtx,
+                            const StringData& ns,
+                            DiskLoc* out ) const;
 
         RecordStore* _rs; // not owned
         int64_t _rand;
