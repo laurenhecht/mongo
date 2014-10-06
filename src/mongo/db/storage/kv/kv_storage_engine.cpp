@@ -72,6 +72,10 @@ namespace mongo {
 
     RecoveryUnit* KVStorageEngine::newRecoveryUnit( OperationContext* opCtx ) {
         invariant( _initialized );
+        if ( !_engine ) {
+            // shutdown
+            return NULL;
+        }
         return _engine->newRecoveryUnit();
     }
 
