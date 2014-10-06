@@ -18,6 +18,12 @@ namespace mongo {
             _engine.reset( NULL );
         }
 
+        virtual KVEngine* restartEngine() {
+            _engine.reset( NULL );
+            _engine.reset( new WiredTigerKVEngine( _dbpath.path() ) );
+            return _engine.get();
+        }
+
         virtual KVEngine* getEngine() { return _engine.get(); }
 
     private:

@@ -137,13 +137,30 @@ namespace mongo {
             return status;
 
         RecordStore* rs = _engine->getEngine()->getRecordStore( txn, ns, ident, options );
-
+        invariant( rs );
         boost::mutex::scoped_lock lk( _collectionsLock );
         _collections[ns.toString()] =
             new KVCollectionCatalogEntry( _engine->getEngine(), _engine->getCatalog(),
                                           ns, ident, rs );
 
         return Status::OK();
+    }
+
+    void KVDatabaseCatalogEntry::initCollection( OperationContext* opCtx,
+                                                 const std::string& ns ) {
+        string ident = _engine->getCatalog()->getCollectionIdent( ns );
+        BSONCollectionCatalogEntry::MetaData md = _engine->getCatalog()->getMetaData( opCtx, ns );
+
+        RecordStore* rs = _engine->getEngine()->getRecordStore( opCtx, ns, ident, md.options );
+        invariant( rs );
+
+        boost::mutex::scoped_lock lk( _collectionsLock );
+        invariant( !_collections[ns] );
+        _collections[ns] = new KVCollectionCatalogEntry( _engine->getEngine(),
+                                                         _engine->getCatalog(),
+                                                         ns,
+                                                         ident,
+                                                         rs );
     }
 
     Status KVDatabaseCatalogEntry::renameCollection( OperationContext* txn,

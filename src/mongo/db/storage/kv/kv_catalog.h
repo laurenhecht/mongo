@@ -28,6 +28,8 @@ namespace mongo {
 
         void init( OperationContext* opCtx );
 
+        void getAllCollections( std::vector<std::string>* out ) const;
+
         /**
          * @return error or ident for instance
          */

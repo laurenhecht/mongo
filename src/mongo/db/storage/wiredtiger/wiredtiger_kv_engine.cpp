@@ -23,6 +23,12 @@ namespace mongo {
 
 
     WiredTigerKVEngine::~WiredTigerKVEngine() {
+        _sessionCache.reset( NULL );
+
+        if ( _conn ) {
+            invariantWTOK( _conn->close(_conn, NULL) );
+            _conn = NULL;
+        }
 
     }
 
@@ -56,9 +62,8 @@ namespace mongo {
                                                      const StringData& ident,
                                                      const CollectionOptions& options ) {
 
-        WiredTigerRecordStore* rs = new WiredTigerRecordStore( opCtx,
-                                                               ns,
-                                                               _uri( ident ) );
+        WiredTigerRecordStore* rs = new WiredTigerRecordStore( opCtx, ns, _uri( ident ) );
+
         if ( options.capped )
             rs->setCapped(options.cappedSize ? options.cappedSize : 4096,
                           options.cappedMaxDocs ? options.cappedMaxDocs : -1);

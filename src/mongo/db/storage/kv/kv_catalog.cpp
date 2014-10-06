@@ -34,7 +34,12 @@ namespace mongo {
         }
     }
 
-
+    void KVCatalog::getAllCollections( std::vector<std::string>* out ) const {
+        boost::mutex::scoped_lock lk( _identsLock );
+        for ( NSToIdentMap::const_iterator it = _idents.begin(); it != _idents.end(); ++it ) {
+            out->push_back( it->first );
+        }
+    }
 
     Status KVCatalog::newCollection( OperationContext* opCtx,
                                      const StringData& ns,

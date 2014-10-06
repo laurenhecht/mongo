@@ -12,6 +12,8 @@ namespace mongo {
         // returns same thing for entire life
         virtual KVEngine* getEngine() = 0;
 
+        virtual KVEngine* restartEngine() = 0;
+
         static KVHarnessHelper* create();
     };
 }

@@ -48,6 +48,8 @@ namespace mongo {
                                        bool preserveClonedFilesOnFailure = false,
                                        bool backupOriginalFiles = false );
 
+        virtual void cleanShutdown(OperationContext* txn);
+
         // ------ kv ------
 
         KVEngine* getEngine() { return _engine.get(); }

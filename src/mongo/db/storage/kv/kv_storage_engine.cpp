@@ -8,8 +8,26 @@
 #include "mongo/util/log.h"
 
 namespace mongo {
+
+    namespace {
+        std::string catalogInfo = "_mdb_catalog";
+    }
+
     KVStorageEngine::KVStorageEngine( KVEngine* engine )
         : _engine( engine ), _initialized( false ) {
+    }
+
+    void KVStorageEngine::cleanShutdown(OperationContext* txn) {
+
+        for ( DBMap::const_iterator it = _dbs.begin(); it != _dbs.end(); ++it ) {
+            delete it->second;
+        }
+        _dbs.clear();
+
+        _catalog.reset( NULL );
+        _catalogRecordStore.reset( NULL );
+
+        _engine.reset( NULL );
     }
 
     KVStorageEngine::~KVStorageEngine() {
@@ -22,14 +40,31 @@ namespace mongo {
         OperationContextNoop opCtx( _engine->newRecoveryUnit() );
         WriteUnitOfWork uow( &opCtx );
 
-        Status status = _engine->createRecordStore( &opCtx, "catalog", CollectionOptions() );
+        Status status = _engine->createRecordStore( &opCtx, catalogInfo, CollectionOptions() );
         fassert( 28520, status );
 
         _catalogRecordStore.reset( _engine->getRecordStore( &opCtx,
-                                                            "catalog", "catalog",
+                                                            catalogInfo,
+                                                            catalogInfo,
                                                             CollectionOptions() ) );
         _catalog.reset( new KVCatalog( _catalogRecordStore.get() ) );
         _catalog->init( &opCtx );
+
+        std::vector<std::string> collections;
+        _catalog->getAllCollections( &collections );
+
+        for ( size_t i = 0; i < collections.size(); i++ ) {
+            std::string coll = collections[i];
+            NamespaceString nss( coll );
+            string dbName = nss.db().toString();
+
+            KVDatabaseCatalogEntry*& db = _dbs[dbName];
+            if ( !db ) {
+                db = new KVDatabaseCatalogEntry( dbName, this );
+            }
+            db->initCollection( &opCtx, coll );
+        }
+
         uow.commit();
 
         _initialized = true;

@@ -57,6 +57,11 @@ namespace mongo {
         virtual Status dropCollection( OperationContext* opCtx,
                                        const StringData& ns );
 
+        // --------------
+
+        void initCollection( OperationContext* opCtx,
+                             const std::string& ns );
+
     private:
         KVStorageEngine* _engine; // not owned here
         bool _used;
