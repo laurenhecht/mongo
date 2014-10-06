@@ -69,7 +69,32 @@ namespace mongo {
 
     Status KVStorageEngine::dropDatabase( OperationContext* txn, const StringData& db ) {
         invariant( _initialized );
-        invariant( 0 );
+
+        KVDatabaseCatalogEntry* entry;
+        {
+            boost::mutex::scoped_lock lk( _dbsLock );
+            DBMap::const_iterator it = _dbs.find( db.toString() );
+            if ( it == _dbs.end() )
+                return Status( ErrorCodes::NamespaceNotFound, "db not found to drop" );
+            entry = it->second;
+        }
+
+        std::list<std::string> toDrop;
+        entry->getCollectionNamespaces( &toDrop );
+
+        for ( std::list<std::string>::iterator it = toDrop.begin(); it != toDrop.end(); ++it ) {
+            string coll = *it;
+            entry->dropCollection( txn, coll );
+        }
+        toDrop.clear();
+        entry->getCollectionNamespaces( &toDrop );
+        invariant( toDrop.empty() );
+
+        {
+            boost::mutex::scoped_lock lk( _dbsLock );
+            _dbs.erase( db.toString() );
+        }
+        return Status::OK();
     }
 
     int KVStorageEngine::flushAllFiles( bool sync ) {

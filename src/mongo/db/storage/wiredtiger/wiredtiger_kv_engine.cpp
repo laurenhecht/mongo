@@ -69,6 +69,7 @@ namespace mongo {
     Status WiredTigerKVEngine::dropRecordStore( OperationContext* opCtx,
                                                 const StringData& ident ) {
         // todo: drop not support yet
+        log() << "WiredTigerKVEngine::dropRecordStore faking it right now for: " << ident;
         return Status::OK();
     }
 
@@ -91,6 +92,7 @@ namespace mongo {
     Status WiredTigerKVEngine::dropSortedDataInterface( OperationContext* opCtx,
                                                         const StringData& ident ) {
         // todo: drop not support yet
+        log() << "WiredTigerKVEngine::dropSortedDataInterface faking it right now for: " << ident;
         return Status::OK();
     }
 

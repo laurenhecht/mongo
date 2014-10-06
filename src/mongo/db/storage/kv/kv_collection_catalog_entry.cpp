@@ -44,9 +44,7 @@ namespace mongo {
         int offset = md.findIndexOffset( indexName );
         invariant( offset >= 0 );
         md.indexes[offset].head = newHead;
-        _catalog->putMetaData( txn,
-                               ns().toString(),
-                               md );
+        _catalog->putMetaData( txn,  ns().toString(), md );
     }
 
     Status KVCollectionCatalogEntry::removeIndex( OperationContext* txn,
@@ -77,15 +75,17 @@ namespace mongo {
         int offset = md.findIndexOffset( indexName );
         invariant( offset >= 0 );
         md.indexes[offset].ready = true;
-        _catalog->putMetaData( txn,
-                               ns().toString(),
-                               md );
+        _catalog->putMetaData( txn, ns().toString(), md );
     }
 
     void KVCollectionCatalogEntry::updateTTLSetting( OperationContext* txn,
                                                      const StringData& idxName,
                                                      long long newExpireSeconds ) {
-        invariant( false );
+        MetaData md = _getMetaData( txn );
+        int offset = md.findIndexOffset( idxName );
+        invariant( offset >= 0 );
+        md.indexes[offset].updateTTLSetting( newExpireSeconds );
+        _catalog->putMetaData( txn, ns().toString(), md );
     }
 
     BSONCollectionCatalogEntry::MetaData KVCollectionCatalogEntry::_getMetaData( OperationContext* txn ) const {

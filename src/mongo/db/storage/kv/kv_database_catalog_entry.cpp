@@ -159,6 +159,14 @@ namespace mongo {
             entry = it->second;
         }
 
+        invariant( entry->getTotalIndexCount( opCtx ) == entry->getCompletedIndexCount( opCtx ) );
+        {
+            std::vector<std::string> indexNames;
+            entry->getAllIndexes( opCtx, &indexNames );
+            for ( size_t i = 0; i < indexNames.size(); i++ ) {
+                entry->removeIndex( opCtx, indexNames[i] );
+            }
+        }
         invariant( entry->getTotalIndexCount( opCtx ) == 0 );
 
         string ident = _engine->getCatalog()->getCollectionIdent( ns );
