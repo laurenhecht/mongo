@@ -11,6 +11,7 @@
 #include "mongo/base/string_data.h"
 #include "mongo/db/catalog/collection_options.h"
 #include "mongo/db/diskloc.h"
+#include "mongo/db/storage/bson_collection_catalog_entry.h"
 
 namespace mongo {
 
@@ -35,6 +36,12 @@ namespace mongo {
                               const CollectionOptions& options );
 
         std::string getCollectionIdent( const StringData& ns ) const;
+
+        const BSONCollectionCatalogEntry::MetaData getMetaData( OperationContext* opCtx,
+                                                                const StringData& ns );
+        void putMetaData( OperationContext* opCtx,
+                          const StringData& ns,
+                          BSONCollectionCatalogEntry::MetaData& md );
 
         Status dropCollection( OperationContext* opCtx,
                                const StringData& ns );

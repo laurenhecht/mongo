@@ -94,7 +94,8 @@ namespace mongo {
             return status;
 
         RecordStore* rs = _engine->getEngine()->getRecordStore( txn, ns, ident );
-        _collections[ns.toString()] = new KVCollectionCatalogEntry( ns, ident, rs );
+        _collections[ns.toString()] =
+            new KVCollectionCatalogEntry( _engine->getCatalog(), ns, ident, rs );
 
         return Status::OK();
     }

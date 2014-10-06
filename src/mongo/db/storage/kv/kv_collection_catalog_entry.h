@@ -8,9 +8,12 @@
 
 namespace mongo {
 
+    class KVCatalog;
+
     class KVCollectionCatalogEntry : public BSONCollectionCatalogEntry {
     public:
-        KVCollectionCatalogEntry( const StringData& ns,
+        KVCollectionCatalogEntry( KVCatalog* catalog,
+                                  const StringData& ns,
                                   const StringData& ident,
                                   RecordStore* rs );
 
@@ -49,9 +52,9 @@ namespace mongo {
         virtual MetaData _getMetaData( OperationContext* txn ) const;
 
     private:
+        KVCatalog* _catalog; // not owned
         std::string _ident;
-        boost::scoped_ptr<RecordStore> _recrodStore;
-
+        boost::scoped_ptr<RecordStore> _recrodStore; // owned
     };
 
 }

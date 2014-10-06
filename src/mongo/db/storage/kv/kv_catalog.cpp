@@ -61,6 +61,7 @@ namespace mongo {
             return res.getStatus();
 
         old = Entry( ident, res.getValue() );
+        LOG(1) << "stored meta data for " << ns << " @ " << res.getValue();
         return Status::OK();
     }
 
@@ -71,6 +72,51 @@ namespace mongo {
         return it->second.ident;
     }
 
+    const BSONCollectionCatalogEntry::MetaData KVCatalog::getMetaData( OperationContext* opCtx,
+                                                                       const StringData& ns ) {
+        DiskLoc loc;
+        {
+            boost::mutex::scoped_lock lk( _identsLock );
+            NSToIdentMap::const_iterator it = _idents.find( ns.toString() );
+            invariant( it != _idents.end() );
+            loc = it->second.storedLoc;
+        }
+        LOG(1) << "looking up metadata for: " << ns << " @ " << loc;
+        RecordData data = _rs->dataFor( opCtx, loc );
+        BSONObj obj( data.data() );
+        LOG(1) << " got: " << obj;
+        BSONCollectionCatalogEntry::MetaData md;
+        if ( obj["md"].isABSONObj() )
+            md.parse( obj["md"].Obj() );
+        return md;
+    }
+
+    void KVCatalog::putMetaData( OperationContext* opCtx,
+                                 const StringData& ns,
+                                 BSONCollectionCatalogEntry::MetaData& md ) {
+        DiskLoc loc;
+        {
+            boost::mutex::scoped_lock lk( _identsLock );
+            NSToIdentMap::const_iterator it = _idents.find( ns.toString() );
+            invariant( it != _idents.end() );
+            loc = it->second.storedLoc;
+        }
+        RecordData data = _rs->dataFor( opCtx, loc );
+        BSONObj obj( data.data() );
+        BSONObjBuilder b;
+        b.append( "md", md.toBSON() );
+        b.appendElementsUnique( obj );
+        obj = b.obj();
+        StatusWith<DiskLoc> status = _rs->updateRecord( opCtx,
+                                                        loc,
+                                                        obj.objdata(),
+                                                        obj.objsize(),
+                                                        false,
+                                                        NULL );
+        fassert( 28521, status.getStatus() );
+        invariant( status.getValue() == loc );
+    }
+
     Status KVCatalog::dropCollection( OperationContext* opCtx,
                                       const StringData& ns ) {
         boost::mutex::scoped_lock lk( _identsLock );
@@ -79,6 +125,7 @@ namespace mongo {
             return Status( ErrorCodes::NamespaceNotFound, "collection not found" );
         }
 
+        LOG(1) << "deleting metadat for " << ns << " @ " << old.storedLoc;
         _rs->deleteRecord( opCtx, old.storedLoc );
         _idents.erase( ns.toString() );
 

@@ -2,11 +2,16 @@
 
 #include "mongo/db/storage/kv/kv_collection_catalog_entry.h"
 
+#include "mongo/db/storage/kv/kv_catalog.h"
+
 namespace mongo {
-    KVCollectionCatalogEntry::KVCollectionCatalogEntry( const StringData& ns,
+
+    KVCollectionCatalogEntry::KVCollectionCatalogEntry( KVCatalog* catalog,
+                                                        const StringData& ns,
                                                         const StringData& ident,
                                                         RecordStore* rs)
         : BSONCollectionCatalogEntry( ns ),
+          _catalog( catalog ),
           _ident( ident.toString() ),
           _recrodStore( rs ) {
     }
@@ -48,7 +53,7 @@ namespace mongo {
     }
 
     BSONCollectionCatalogEntry::MetaData KVCollectionCatalogEntry::_getMetaData( OperationContext* txn ) const {
-        invariant( false );
+        return _catalog->getMetaData( txn, ns().toString() );
     }
 
 }
