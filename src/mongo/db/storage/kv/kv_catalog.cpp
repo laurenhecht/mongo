@@ -72,6 +72,11 @@ namespace mongo {
         return it->second.ident;
     }
 
+    std::string KVCatalog::getIndexIdent( const StringData& ns, const StringData& idxName ) const {
+        string a = getCollectionIdent( ns );
+        return a + string("$") + idxName.toString(); // todo, need a unique thing in here
+    }
+
     const BSONCollectionCatalogEntry::MetaData KVCatalog::getMetaData( OperationContext* opCtx,
                                                                        const StringData& ns ) {
         DiskLoc loc;

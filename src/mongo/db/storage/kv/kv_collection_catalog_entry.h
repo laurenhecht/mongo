@@ -9,10 +9,12 @@
 namespace mongo {
 
     class KVCatalog;
+    class KVEngine;
 
     class KVCollectionCatalogEntry : public BSONCollectionCatalogEntry {
     public:
-        KVCollectionCatalogEntry( KVCatalog* catalog,
+        KVCollectionCatalogEntry( KVEngine* engine,
+                                  KVCatalog* catalog,
                                   const StringData& ns,
                                   const StringData& ident,
                                   RecordStore* rs );
@@ -52,6 +54,7 @@ namespace mongo {
         virtual MetaData _getMetaData( OperationContext* txn ) const;
 
     private:
+        KVEngine* _engine; // not owned
         KVCatalog* _catalog; // not owned
         std::string _ident;
         boost::scoped_ptr<RecordStore> _recrodStore; // owned

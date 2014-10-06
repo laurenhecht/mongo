@@ -37,6 +37,8 @@ namespace mongo {
 
         std::string getCollectionIdent( const StringData& ns ) const;
 
+        std::string getIndexIdent( const StringData& ns, const StringData& idName ) const;
+
         const BSONCollectionCatalogEntry::MetaData getMetaData( OperationContext* opCtx,
                                                                 const StringData& ns );
         void putMetaData( OperationContext* opCtx,
