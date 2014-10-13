@@ -108,7 +108,7 @@ namespace mongo {
 
             // Clean up after ourselves.
             for (BSONObjSet::const_iterator j = keys.begin(); j != i; ++j) {
-                removeOneKey(txn, *j, loc);
+                removeOneKey(txn, *j, loc, options.dupsAllowed);
                 *numInserted = 0;
             }
 
@@ -124,11 +124,12 @@ namespace mongo {
 
     bool BtreeBasedAccessMethod::removeOneKey(OperationContext* txn,
                                               const BSONObj& key,
-                                              const DiskLoc& loc) {
+                                              const DiskLoc& loc,
+                                              bool dupsAllowed) {
         bool ret = false;
 
         try {
-            ret = _newInterface->unindex(txn, key, loc);
+            ret = _newInterface->unindex(txn, key, loc, dupsAllowed);
         } catch (AssertionException& e) {
             log() << "Assertion failure: _unindex failed "
                   << _descriptor->indexNamespace() << endl;
@@ -158,7 +159,7 @@ namespace mongo {
         *numDeleted = 0;
 
         for (BSONObjSet::const_iterator i = keys.begin(); i != keys.end(); ++i) {
-            bool thisKeyOK = removeOneKey(txn, *i, loc);
+            bool thisKeyOK = removeOneKey(txn, *i, loc, options.dupsAllowed);
 
             if (thisKeyOK) {
                 ++*numDeleted;
@@ -295,7 +296,10 @@ namespace mongo {
         }
 
         for (size_t i = 0; i < data->removed.size(); ++i) {
-            _newInterface->unindex(txn, *data->removed[i], data->loc);
+            _newInterface->unindex(txn,
+                                   *data->removed[i],
+                                   data->loc,
+                                   data->dupsAllowed);
         }
 
         for (size_t i = 0; i < data->added.size(); ++i) {
