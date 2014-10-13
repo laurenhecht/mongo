@@ -31,6 +31,7 @@ namespace mongo {
             }
         }
         WT_CURSOR* c = NULL;
+        log() << "trying to open cursor on " << uri << " from session: " << (void*)_session;
         int ret = _session->open_cursor(_session, uri.c_str(), NULL, NULL, &c);
         if (ret != ENOENT) invariantWTOK(ret);
         return c;

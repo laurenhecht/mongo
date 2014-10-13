@@ -43,6 +43,8 @@ namespace mongo {
         virtual ~HarnessHelper(){}
 
         virtual RecordStore* newNonCappedRecordStore() = 0;
+        virtual RecordStore* newCappedRecordStore( int64_t cappedMaxSize,
+                                                   int64_t cappedMaxDocs ) = 0;
         virtual RecoveryUnit* newRecoveryUnit() = 0;
 
         virtual OperationContext* newOperationContext() {

@@ -69,6 +69,21 @@ namespace mongo {
             return new WiredTigerRecordStore( &txn, ns, uri );
         }
 
+        virtual RecordStore* newCappedRecordStore( int64_t cappedMaxSize,
+                                                   int64_t cappedMaxDocs ) {
+            std::string ns = "a.b";
+
+            WiredTigerRecoveryUnit* ru = new WiredTigerRecoveryUnit( _sessionCache );
+            OperationContextNoop txn( ru );
+            string uri = "table:a.b";
+            std::string config = WiredTigerRecordStore::generateCreateString(CollectionOptions(), "");
+
+            WT_SESSION* s = ru->getSession()->getSession();
+            invariantWTOK( s->create( s, uri.c_str(), config.c_str() ) );
+
+            return new WiredTigerRecordStore( &txn, ns, uri, true, cappedMaxSize, cappedMaxDocs );
+        }
+
         virtual RecoveryUnit* newRecoveryUnit() {
             return new WiredTigerRecoveryUnit( _sessionCache );
         }

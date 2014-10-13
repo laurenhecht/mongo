@@ -58,5 +58,7 @@ env.Library(
         'record_store_test_updatewithdamages.cpp',
         'record_store_test_validate.cpp',
         ],
-    LIBDEPS=[]
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/background_job'
+        ]
     )

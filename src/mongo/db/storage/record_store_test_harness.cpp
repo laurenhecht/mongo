@@ -32,6 +32,7 @@
 
 #include "mongo/db/storage/record_store.h"
 #include "mongo/unittest/unittest.h"
+#include "mongo/util/background.h"
 
 namespace mongo {
     TEST( RecordStoreTestHarness, Simple1 ) {
@@ -431,6 +432,79 @@ namespace mongo {
             }
             ASSERT_EQUALS( 0, x );
         }
+
+    }
+
+    class Inserter : public BackgroundJob {
+    public:
+        Inserter( HarnessHelper* hh, RecordStore* rs )
+            : _hh( hh ), _rs( rs ) {
+        }
+
+        std::string name() const { return "Inserter"; }
+
+        void run() {
+            scoped_ptr<OperationContext> opCtx( _hh->newOperationContext() );
+            {
+                WriteUnitOfWork uow( opCtx.get() );
+                for ( int i = 5; i < 10; i++ ) {
+                    string s = str::stream() << "eliot" << i;
+                    ASSERT_OK( _rs->insertRecord( opCtx.get(), s.c_str(), s.size() + 1, false ).getStatus() );
+                }
+                uow.commit();
+            }
+        }
+
+        HarnessHelper* _hh;
+        RecordStore* _rs;
+    };
+
+    TEST( RecordStoreTestHarness, Tailable1 ) {
+        scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
+        scoped_ptr<RecordStore> rs( harnessHelper->newCappedRecordStore( 10000, 10000 ) );
+
+        {
+            scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
+            {
+                WriteUnitOfWork uow( opCtx.get() );
+                for ( int i = 0; i < 5; i++ ) {
+                    string s = str::stream() << "eliot" << i;
+                    ASSERT_OK( rs->insertRecord( opCtx.get(), s.c_str(), s.size() + 1, false ).getStatus() );
+                }
+                uow.commit();
+            }
+        }
+
+        scoped_ptr<OperationContext> readTransaction( harnessHelper->newOperationContext() );
+        scoped_ptr<RecordIterator> it( rs->getIterator( readTransaction.get(),
+                                                        DiskLoc(),
+                                                        true,
+                                                        CollectionScanParams::FORWARD ) );
+        int found = 0;
+        while ( !it->isEOF() ) {
+            DiskLoc loc = it->getNext();
+            RecordData data = it->dataFor( loc );
+            string s = str::stream() << "eliot" << found++;
+            ASSERT_EQUALS( s, data.data() );
+        }
+
+        ASSERT_EQUALS( 5, found );
+
+        {
+            Inserter ins( harnessHelper.get(), rs.get() );
+            ins.go();
+            ins.wait();
+        }
+
+        while ( !it->isEOF() ) {
+            DiskLoc loc = it->getNext();
+            RecordData data = it->dataFor( loc );
+            string s = str::stream() << "eliot" << found++;
+            ASSERT_EQUALS( s, data.data() );
+        }
+
+        ASSERT_EQUALS( 10, found );
+
 
     }
 
