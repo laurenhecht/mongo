@@ -335,7 +335,7 @@ namespace mongo {
         c->set_key(c, _makeKey(loc));
         WiredTigerItem value(data, len);
         c->set_value(c, value.Get());
-        ret = c->insert(c);
+        ret = c->update(c);
         invariantWTOK(ret);
 
         _increaseDataSize(txn, len - old_length);
@@ -374,7 +374,7 @@ namespace mongo {
         // write back
         WiredTigerItem value(data);
         c->set_value(c, value.Get());
-        ret = c->insert(c);
+        ret = c->update(c);
         invariantWTOK(ret);
 
         return Status::OK();

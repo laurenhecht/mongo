@@ -31,7 +31,7 @@ namespace mongo {
             }
         }
         WT_CURSOR* c = NULL;
-        int ret = _session->open_cursor(_session, uri.c_str(), NULL, NULL, &c);
+        int ret = _session->open_cursor(_session, uri.c_str(), NULL, "overwrite=false", &c);
         if (ret != ENOENT) invariantWTOK(ret);
         return c;
     }

@@ -210,10 +210,14 @@ namespace {
         return Status::OK();
     }
 
-    bool WiredTigerIndex::unindex(OperationContext* txn, const BSONObj& key, const DiskLoc& loc) {
+    bool WiredTigerIndex::unindex(OperationContext* txn,
+                                  const BSONObj& key,
+                                  const DiskLoc& loc,
+                                  bool dupsAllowed ) {
         invariant(!loc.isNull());
         invariant(loc.isValid());
         invariant(!hasFieldNames(key));
+        invariant(dupsAllowed || _unique);
 
         WiredTigerCursor curwrap(_uri, _instanceId, txn);
         WT_CURSOR *c = curwrap.get();

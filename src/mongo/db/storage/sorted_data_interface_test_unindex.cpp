@@ -63,7 +63,7 @@ namespace mongo {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
             {
                 WriteUnitOfWork uow( opCtx.get() );
-                ASSERT( sorted->unindex( opCtx.get(), key1, loc1 ) );
+                ASSERT( sorted->unindex( opCtx.get(), key1, loc1, true ) );
                 uow.commit();
             }
         }
@@ -102,7 +102,7 @@ namespace mongo {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
             {
                 WriteUnitOfWork uow( opCtx.get() );
-                ASSERT( sorted->unindex( opCtx.get(), compoundKey1a, loc1 ) );
+                ASSERT( sorted->unindex( opCtx.get(), compoundKey1a, loc1, true ) );
                 uow.commit();
             }
         }
@@ -142,7 +142,7 @@ namespace mongo {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
             {
                 WriteUnitOfWork uow( opCtx.get() );
-                ASSERT( sorted->unindex( opCtx.get(), key2, loc2 ) );
+                ASSERT( sorted->unindex( opCtx.get(), key2, loc2, true ) );
                 uow.commit();
             }
         }
@@ -170,8 +170,8 @@ namespace mongo {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
             {
                 WriteUnitOfWork uow( opCtx.get() );
-                ASSERT( sorted->unindex( opCtx.get(), key1, loc1 ) );
-                ASSERT( sorted->unindex( opCtx.get(), key3, loc3 ) );
+                ASSERT( sorted->unindex( opCtx.get(), key1, loc1, true ) );
+                ASSERT( sorted->unindex( opCtx.get(), key3, loc3, true ) );
                 uow.commit();
             }
         }
@@ -211,7 +211,7 @@ namespace mongo {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
             {
                 WriteUnitOfWork uow( opCtx.get() );
-                ASSERT( sorted->unindex( opCtx.get(), key1, loc2 ) );
+                ASSERT( sorted->unindex( opCtx.get(), key1, loc2, true ) );
                 uow.commit();
             }
         }
@@ -239,8 +239,8 @@ namespace mongo {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
             {
                 WriteUnitOfWork uow( opCtx.get() );
-                ASSERT( sorted->unindex( opCtx.get(), key1, loc1 ) );
-                ASSERT( sorted->unindex( opCtx.get(), key1, loc3 ) );
+                ASSERT( sorted->unindex( opCtx.get(), key1, loc1, false) );
+                ASSERT( sorted->unindex( opCtx.get(), key1, loc3, true ) );
                 uow.commit();
             }
         }
@@ -265,7 +265,7 @@ namespace mongo {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
             {
                 WriteUnitOfWork uow( opCtx.get() );
-                ASSERT( !sorted->unindex( opCtx.get(), key1, loc1 ) );
+                ASSERT( !sorted->unindex( opCtx.get(), key1, loc1, true ) );
                 uow.commit();
             }
         }
