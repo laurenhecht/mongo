@@ -76,8 +76,12 @@ namespace {
     static IndexKeyEntry makeIndexKeyEntry(const WT_ITEM *keyCols) {
         const char* data = reinterpret_cast<const char*>( keyCols->data );
         BSONObj key( data );
-        DiskLoc loc = reinterpret_cast<const DiskLoc*>( data + key.objsize() )[0];
+        if ( keyCols->size == static_cast<size_t>( key.objsize() ) ) {
+            // in unique mode
+            return IndexKeyEntry( key, DiskLoc() );
+        }
         invariant( keyCols->size == key.objsize() + sizeof(DiskLoc) );
+        DiskLoc loc = reinterpret_cast<const DiskLoc*>( data + key.objsize() )[0];
         return IndexKeyEntry( key, loc );
     }
 
@@ -89,6 +93,12 @@ namespace {
         memcpy( out->get() + key.objsize(), reinterpret_cast<const char*>(&loc), sizeof(DiskLoc) );
 
         return WiredTigerItem( out->get(), keyLen );
+    }
+
+    DiskLoc _toDiskLoc( const WT_ITEM& item ) {
+        DiskLoc l;
+        memcpy( &l, item.data, sizeof(DiskLoc) );
+        return l;
     }
 
     /**
@@ -187,6 +197,8 @@ namespace {
         // if _unique false, dupsAllowed must be true
         invariant(dupsAllowed || _unique);
 
+        log() << "YO " << key << " " << loc << " " << _unique << " " << dupsAllowed;
+
         if ( key.objsize() >= TempKeyMaxSize ) {
             string msg = mongoutils::str::stream()
                 << "WiredTigerIndex::insert: key too large to index, failing "
@@ -197,12 +209,52 @@ namespace {
         WiredTigerCursor curwrap(_uri, _instanceId, txn);
         WT_CURSOR *c = curwrap.get();
 
-        if (!dupsAllowed && isDup(c, key, loc))
-            return dupKeyError(key);
+        if ( _unique ) {
+            WiredTigerItem keyItem( key.objdata(), key.objsize() );
+            WiredTigerItem valueItem( &loc, sizeof(loc) );
+            c->set_key( c, keyItem.Get() );
+            c->set_value( c, valueItem.Get() );
+            int ret = c->insert( c );
+            log() << "HERE: " << ret;
+            if ( ret == WT_DUPLICATE_KEY ) {
+                if ( !dupsAllowed ) {
+                    log() << "returning dup key";
+                    return dupKeyError(key);
+                }
+                // we're in weird mode where there might be multiple values
+                // we put them all in the "list"
+                ret = c->search(c);
+                invariantWTOK( ret );
+
+                WT_ITEM old;
+                invariantWTOK( c->get_value(c, &old ) );
+
+                // see if its already in the array
+                for ( int i = 0; i < (old.size/sizeof(DiskLoc)); i++ ) {
+                    DiskLoc temp;
+                    memcpy( &temp,
+                            reinterpret_cast<const char*>( old.data ) + ( i * sizeof(DiskLoc) ),
+                            sizeof(DiskLoc) );
+                    if ( loc == temp )
+                        return Status::OK();
+                }
+
+                // not in the array, add it to the back
+                size_t newSize = old.size + sizeof(DiskLoc);
+                boost::scoped_array<char> bigger( new char[newSize] );
+                memcpy( bigger.get(), old.data, old.size );
+                memcpy( bigger.get() + old.size, &loc, sizeof(DiskLoc) );
+                WiredTigerItem valueItem = WiredTigerItem( bigger.get(), newSize );
+                c->set_value( c, valueItem.Get() );
+                invariantWTOK( c->update( c ) );
+                return Status::OK();
+            }
+            invariantWTOK( ret );
+            return Status::OK();
+        }
 
         boost::scoped_array<char> data;
         WiredTigerItem item = _toItem( key, loc, &data );
-
         c->set_key(c, item.Get() );
         c->set_value(c, &emptyItem);
         int ret = c->insert(c);
@@ -222,16 +274,30 @@ namespace {
         WiredTigerCursor curwrap(_uri, _instanceId, txn);
         WT_CURSOR *c = curwrap.get();
         invariant( c );
-        // TODO: can we avoid a search?
+
+        if ( _unique ) {
+            if ( !dupsAllowed ) {
+                // nice and clear
+                WiredTigerItem keyItem( key.objdata(), key.objsize() );
+                c->set_key( c, keyItem.Get() );
+                int ret = c->remove(c);
+                if (ret == WT_NOTFOUND) {
+                    return false;
+                }
+                invariantWTOK(ret);
+                return true;
+            }
+            // ewww
+            invariant( false );
+        }
+
         boost::scoped_array<char> data;
         WiredTigerItem item = _toItem( key, loc, &data);
         c->set_key(c, item.Get() );
-        int ret = c->search(c);
+        int ret = c->remove(c);
         if (ret == WT_NOTFOUND) {
             return false;
         }
-        invariantWTOK(ret);
-        ret = c->remove(c);
         invariantWTOK(ret);
         return true;
     }
@@ -279,24 +345,23 @@ namespace {
         // already in memory...
         return Status::OK();
     }
-    
+
     long long WiredTigerIndex::getSpaceUsedBytes( OperationContext* txn ) const { return 1; }
 
     bool WiredTigerIndex::isDup(WT_CURSOR *c, const BSONObj& key, const DiskLoc& loc ) {
-        // First check whether the key exists. Pass in an empty disk location to find
-        // any matching keys, regardless of location.
-        boost::scoped_array<char> data;
-        WiredTigerItem item = _toItem( key, DiskLoc(), &data );
-        bool found = _search(c, item, true);
-        if (!found)
+        invariant( _unique );
+        // First check whether the key exists.
+        WiredTigerItem item( key.objdata(), key.objsize() );
+        c->set_key( c, item.Get() );
+        int ret = c->search(c);
+        if ( ret == WT_NOTFOUND )
             return false;
+        invariantWTOK( ret );
 
-        // Now check that we found a matching index key for a different record
-        WT_ITEM keyItem;
-        int ret = c->get_key(c, &keyItem);
-        invariantWTOK(ret);
-        const IndexKeyEntry entry = makeIndexKeyEntry( &keyItem );
-        return key == entry.key && loc != entry.loc;
+        WT_ITEM value;
+        invariantWTOK( c->get_value(c,&value) );
+        DiskLoc found = _toDiskLoc( value );
+        return found != loc;
     }
 
     /* Cursor implementation */
@@ -410,10 +475,13 @@ namespace {
 
     DiskLoc WiredTigerIndex::IndexCursor::getDiskLoc() const {
         WT_CURSOR *c = _cursor.get();
-        WT_ITEM keyItem;
-        int ret = c->get_key(c, &keyItem);
-        invariantWTOK(ret);
-        return makeIndexKeyEntry( &keyItem ).loc;
+        WT_ITEM item;
+        if ( _idx.unique() ) {
+            invariantWTOK( c->get_value(c, &item ) );
+            return _toDiskLoc( item );
+        }
+        invariantWTOK( c->get_key(c, &item) );
+        return makeIndexKeyEntry( &item ).loc;
     }
 
     void WiredTigerIndex::IndexCursor::advance() {
@@ -441,10 +509,9 @@ namespace {
         invariant( _savedForCheck == txn->recoveryUnit() );
     }
 
-    SortedDataInterface::Cursor* WiredTigerIndex::newCursor(
-            OperationContext* txn, int direction) const {
+    SortedDataInterface::Cursor* WiredTigerIndex::newCursor(OperationContext* txn,
+                                                            int direction) const {
         invariant((direction == 1) || (direction == -1));
-
         return new IndexCursor(*this, txn, direction == 1);
     }
 

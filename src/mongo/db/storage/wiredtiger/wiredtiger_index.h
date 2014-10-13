@@ -95,6 +95,7 @@ namespace mongo {
 
         const std::string &GetURI() const;
         uint64_t instanceId() const { return _instanceId; }
+        bool unique() const { return _unique; }
 
         private:
             class IndexCursor : public SortedDataInterface::Cursor {

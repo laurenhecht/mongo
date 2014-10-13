@@ -152,8 +152,10 @@ assert.eq(coll.count(), 1);
 //
 // Fail with duplicate key error on multiple document inserts, ordered false
 coll.remove({});
-printjson( request = {insert : coll.getName(), documents: [{a:1}, {a:1}, {a:1}], writeConcern:{w:1}, ordered:false} );
+printjson( request = {insert : coll.getName(), documents: [{_id:101,a:3}, {_id:102,a:3}, {_id:103,a:3}], writeConcern:{w:1}, ordered:false} );
 printjson( result = coll.runCommand(request) );
+print( "hi" );
+coll.find().forEach( printjson );
 assert(result.ok);
 assert.eq(1, result.n);
 assert.eq(2, result.writeErrors.length);
@@ -172,7 +174,7 @@ assert.eq(coll.count(), 1);
 //
 // Fail with duplicate key error on multiple document inserts, ordered true
 coll.remove({});
-printjson( request = {insert : coll.getName(), documents: [{a:1}, {a:1}, {a:1}], writeConcern:{w:1}, ordered:true} );
+printjson( request = {insert : coll.getName(), documents: [{a:2}, {a:2}, {a:2}], writeConcern:{w:1}, ordered:true} );
 printjson( result = coll.runCommand(request) );
 assert(result.ok);
 assert.eq(1, result.n);
