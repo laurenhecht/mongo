@@ -169,8 +169,9 @@ namespace {
         return s->create(s, uri.c_str(), config.c_str());
     }
 
-    WiredTigerIndex::WiredTigerIndex(const std::string &uri)
+    WiredTigerIndex::WiredTigerIndex(const std::string &uri, bool unique)
         : _uri( uri ),
+          _unique( unique ),
           _instanceId( WiredTigerSession::genCursorId() ) {
     }
 
@@ -181,6 +182,10 @@ namespace {
         invariant(!loc.isNull());
         invariant(loc.isValid());
         invariant(!hasFieldNames(key));
+
+        // if _unique is true, dupsAllowed allowed can be true or false
+        // if _unique false, dupsAllowed must be true
+        invariant(dupsAllowed || _unique);
 
         if ( key.objsize() >= TempKeyMaxSize ) {
             string msg = mongoutils::str::stream()
@@ -240,9 +245,12 @@ namespace {
         *numKeysOut = count;
     }
 
-    Status WiredTigerIndex::dupKeyCheck(
-            OperationContext* txn, const BSONObj& key, const DiskLoc& loc) {
+    Status WiredTigerIndex::dupKeyCheck( OperationContext* txn,
+                                         const BSONObj& key,
+                                         const DiskLoc& loc) {
         invariant(!hasFieldNames(key));
+        invariant(_unique);
+
         WiredTigerCursor curwrap(_uri, _instanceId, txn);
         WT_CURSOR *c = curwrap.get();
 
@@ -472,6 +480,10 @@ namespace {
 
     SortedDataBuilderInterface* WiredTigerIndex::getBulkBuilder(
             OperationContext* txn, bool dupsAllowed) {
+        if ( !dupsAllowed ) {
+            // if we don't allow dups, we better be unique
+            invariant( _unique );
+        }
         return new WiredTigerBuilderImpl(*this, txn, dupsAllowed);
     }
 

@@ -37,7 +37,7 @@ namespace mongo {
 
     TEST( SortedDataInterface, InsertWithDups1 ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( false ) );
 
         {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
@@ -69,7 +69,7 @@ namespace mongo {
 
     TEST( SortedDataInterface, InsertWithDups2 ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( false ) );
 
         {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
@@ -97,7 +97,7 @@ namespace mongo {
 
     TEST( SortedDataInterface, InsertWithDups3AndRollback ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( false ) );
 
         {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
@@ -125,7 +125,7 @@ namespace mongo {
 
     TEST( SortedDataInterface, InsertNoDups1 ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( true ) );
 
         {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
@@ -154,7 +154,7 @@ namespace mongo {
 
     TEST( SortedDataInterface, InsertNoDups2 ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( true ) );
 
         {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
@@ -183,7 +183,7 @@ namespace mongo {
 
     TEST( SortedDataInterface, Unindex1 ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( false ) );
 
         {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
@@ -246,7 +246,7 @@ namespace mongo {
 
     TEST( SortedDataInterface, Unindex2Rollback ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( false ) );
 
         {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
@@ -281,7 +281,7 @@ namespace mongo {
 
     TEST( SortedDataInterface, CursorIterate1 ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( false ) );
 
         int N = 5;
         for ( int i = 0; i < N; i++ ) {
@@ -313,7 +313,7 @@ namespace mongo {
 
     TEST( SortedDataInterface, CursorIterate1WithSaveRestore ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( false ) );
 
         int N = 5;
         for ( int i = 0; i < N; i++ ) {
@@ -347,7 +347,7 @@ namespace mongo {
 
     TEST( SortedDataInterface, CursorIterate2WithSaveRestore ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( false ) );
 
         int N = 5;
         for ( int i = 0; i < N; i++ ) {
@@ -380,7 +380,7 @@ namespace mongo {
 
     TEST( SortedDataInterface, Locate1 ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( false ) );
 
         BSONObj key = BSON( "" << 1 );
         DiskLoc loc( 5, 16 );
@@ -412,7 +412,7 @@ namespace mongo {
 
     TEST( SortedDataInterface, Locate2 ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( false ) );
 
         {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
@@ -445,7 +445,7 @@ namespace mongo {
 
     TEST( SortedDataInterface, Locate2Empty ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( false ) );
 
         {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
@@ -480,7 +480,7 @@ namespace mongo {
 
     TEST( SortedDataInterface, Locate3Descending ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( false ) );
 
         {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
@@ -538,7 +538,7 @@ namespace mongo {
 
     TEST( SortedDataInterface, Locate4 ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( false ) );
 
         {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );

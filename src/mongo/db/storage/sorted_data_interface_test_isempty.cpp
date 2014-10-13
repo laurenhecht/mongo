@@ -40,7 +40,7 @@ namespace mongo {
     // when that is unindex.
     TEST( SortedDataInterface, IsEmpty ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( true ) );
 
         {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );

@@ -57,7 +57,11 @@ namespace mongo {
         static bool _search(WT_CURSOR *c, const WiredTigerItem& item, bool forward);
         static bool _search(WT_CURSOR *c, const BSONObj &key, const DiskLoc& loc, bool forward);
 
-        WiredTigerIndex(const std::string &uri);
+        /**
+         * @param unique - If this is a uniqu index.
+         *                 Note: even if unique, it may be allowed ot be non-unique at times.
+         */
+        WiredTigerIndex(const std::string &uri, bool unique );
 
         virtual SortedDataBuilderInterface* getBulkBuilder(
                 OperationContext* txn, bool dupsAllowed);
@@ -145,6 +149,7 @@ namespace mongo {
             };
 
         std::string _uri;
+        bool _unique;
         uint64_t _instanceId;
     };
 } // namespace

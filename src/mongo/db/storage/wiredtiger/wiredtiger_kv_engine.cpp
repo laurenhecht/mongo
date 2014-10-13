@@ -4,6 +4,7 @@
 
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
 
+#include "mongo/db/index/index_descriptor.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_index.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_record_store.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_recovery_unit.h"
@@ -129,8 +130,8 @@ namespace mongo {
 
     SortedDataInterface* WiredTigerKVEngine::getSortedDataInterface( OperationContext* opCtx,
                                                                      const StringData& ident,
-                                                                     const IndexDescriptor* dexc ) {
-        return new WiredTigerIndex( _uri( ident ) );
+                                                                     const IndexDescriptor* desc ) {
+        return new WiredTigerIndex( _uri( ident ), desc->unique() );
     }
 
     Status WiredTigerKVEngine::dropSortedDataInterface( OperationContext* opCtx,

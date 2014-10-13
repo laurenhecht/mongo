@@ -39,7 +39,7 @@ namespace mongo {
     // on the WriteUnitOfWork causes the changes to not become visible.
     TEST( SortedDataInterface, InsertWithoutCommit ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( true ) );
 
         {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
@@ -81,7 +81,7 @@ namespace mongo {
     // not become visible.
     TEST( SortedDataInterface, UnindexWithoutCommit ) {
         scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
-        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface() );
+        scoped_ptr<SortedDataInterface> sorted( harnessHelper->newSortedDataInterface( false ) );
 
         {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
@@ -92,8 +92,8 @@ namespace mongo {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
             {
                 WriteUnitOfWork uow( opCtx.get() );
-                ASSERT_OK( sorted->insert( opCtx.get(), key1, loc1, false ) );
-                ASSERT_OK( sorted->insert( opCtx.get(), key2, loc2, false ) );
+                ASSERT_OK( sorted->insert( opCtx.get(), key1, loc1, true ) );
+                ASSERT_OK( sorted->insert( opCtx.get(), key2, loc2, true ) );
                 uow.commit();
             }
         }
@@ -121,7 +121,7 @@ namespace mongo {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
             {
                 WriteUnitOfWork uow( opCtx.get() );
-                ASSERT_OK( sorted->insert( opCtx.get(), key3, loc3, false ) );
+                ASSERT_OK( sorted->insert( opCtx.get(), key3, loc3, true ) );
                 uow.commit();
             }
         }
