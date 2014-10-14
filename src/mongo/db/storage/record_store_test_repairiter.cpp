@@ -34,6 +34,7 @@
 #include "mongo/db/storage/record_data.h"
 #include "mongo/db/storage/record_store.h"
 #include "mongo/unittest/unittest.h"
+#include "mongo/util/log.h"
 
 using std::set;
 using std::string;
@@ -105,9 +106,8 @@ namespace mongo {
             RecordIterator *it = rs->getIteratorForRepair( opCtx.get() );
 
             while ( !it->isEOF() ) {
-                DiskLoc loc = it->curr();
-                ASSERT( 1 == remain.erase( loc ) );
-                ASSERT_EQUALS( loc, it->getNext() );
+                DiskLoc loc = it->getNext();
+                remain.erase( loc ); // can happen more than once per doc
             }
             ASSERT( remain.empty() );
 
