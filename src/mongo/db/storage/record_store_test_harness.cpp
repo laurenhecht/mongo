@@ -434,4 +434,59 @@ namespace mongo {
 
     }
 
+    TEST( RecordStoreTestHarness, Tailable1 ) {
+        scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
+        scoped_ptr<RecordStore> rs( harnessHelper->newCappedRecordStore( 10000, 10000 ) );
+
+        {
+            scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
+            {
+                WriteUnitOfWork uow( opCtx.get() );
+                for ( int i = 0; i < 5; i++ ) {
+                    string s = str::stream() << "eliot" << i;
+                    ASSERT_OK( rs->insertRecord( opCtx.get(), s.c_str(), s.size() + 1, false ).getStatus() );
+                }
+                uow.commit();
+            }
+        }
+
+        scoped_ptr<OperationContext> readTransaction( harnessHelper->newOperationContext() );
+        scoped_ptr<RecordIterator> it( rs->getIterator( readTransaction.get(),
+                                                        DiskLoc(),
+                                                        true,
+                                                        CollectionScanParams::FORWARD ) );
+        int found = 0;
+        while ( !it->isEOF() ) {
+            DiskLoc loc = it->getNext();
+            RecordData data = it->dataFor( loc );
+            string s = str::stream() << "eliot" << found++;
+            ASSERT_EQUALS( s, data.data() );
+        }
+
+        ASSERT_EQUALS( 5, found );
+
+        {
+            scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
+            {
+                WriteUnitOfWork uow( opCtx.get() );
+                for ( int i = 5; i < 10; i++ ) {
+                    string s = str::stream() << "eliot" << i;
+                    ASSERT_OK( rs->insertRecord( opCtx.get(), s.c_str(), s.size() + 1, false ).getStatus() );
+                }
+                uow.commit();
+            }
+        }
+
+        do {
+            DiskLoc loc = it->getNext();
+            ASSERT( !loc.isNull() );
+            RecordData data = it->dataFor( loc );
+            string s = str::stream() << "eliot" << found++;
+            ASSERT_EQUALS( s, data.data() );
+        } while ( !it->isEOF() );
+
+        ASSERT_EQUALS( 10, found );
+
+    }
+
 }

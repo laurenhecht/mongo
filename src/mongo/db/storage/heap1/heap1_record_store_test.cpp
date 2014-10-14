@@ -44,6 +44,14 @@ namespace mongo {
             return new HeapRecordStore( "a.b" );
         }
 
+        virtual RecordStore* newCappedRecordStore( int64_t cappedMaxSize,
+                                                   int64_t cappedMaxDocs ) {
+            return new HeapRecordStore( "a.b",
+                                        true,
+                                        cappedMaxSize,
+                                        cappedMaxDocs );
+        }
+
         virtual RecoveryUnit* newRecoveryUnit() {
             return new Heap1RecoveryUnit();
         }
