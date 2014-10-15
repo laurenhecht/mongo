@@ -148,8 +148,8 @@ namespace mongo {
     class WriteUnitOfWork {
         MONGO_DISALLOW_COPYING(WriteUnitOfWork);
     public:
-        WriteUnitOfWork(OperationContext* txn)
-                 : _txn(txn) {
+        WriteUnitOfWork(OperationContext* txn, bool autoCommit=false)
+            : _txn(txn), _autoCommit(autoCommit) {
             if ( _txn->lockState() ) {
                 _txn->lockState()->beginWriteUnitOfWork();
             }
@@ -157,6 +157,8 @@ namespace mongo {
         }
 
         ~WriteUnitOfWork() {
+            if ( _autoCommit )
+                _txn->recoveryUnit()->commitUnitOfWork();
             _txn->recoveryUnit()->endUnitOfWork();
             if ( _txn->lockState() ) {
                 _txn->lockState()->endWriteUnitOfWork();
@@ -173,6 +175,7 @@ namespace mongo {
 
     private:
         OperationContext* const _txn;
+        bool _autoCommit;
     };
 
 }  // namespace mongo

@@ -36,6 +36,7 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_session_cache.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
 #include "mongo/util/log.h"
+#include "mongo/util/stacktrace.h"
 
 namespace mongo {
 
@@ -68,6 +69,7 @@ namespace mongo {
         if ( _session && _active ) {
             WT_SESSION *s = _session->getSession();
             int ret = s->commit_transaction(s, NULL);
+            LOG(2) << "WT commit";
             invariantWTOK(ret);
             _active = false;
         }
@@ -137,6 +139,7 @@ namespace mongo {
             invariantWTOK(ret);
             _active = true;
             _timer.reset();
+            LOG(2) << "WT begin_transaction";
         }
         return _session;
     }
@@ -148,17 +151,21 @@ namespace mongo {
 
         WT_SESSION *s = _session->getSession();
         invariantWTOK( s->commit_transaction(s, NULL) );
+        LOG(2) << "WT commit";
         invariantWTOK( s->begin_transaction(s, NULL) );
+        LOG(2) << "WT begin_transaction";
         _timer.reset();
     }
 
     void WiredTigerRecoveryUnit::forceCommit() {
         if ( !_active )
             return;
-        
+
         WT_SESSION *s = _session->getSession();
         invariantWTOK( s->commit_transaction(s, NULL) );
+        LOG(2) << "WT commit";
         invariantWTOK( s->begin_transaction(s, NULL) );
+        LOG(2) << "WT begin_transaction";
         _timer.reset();
     }
 
@@ -169,6 +176,7 @@ namespace mongo {
         if ( _active ) {
             WT_SESSION *s = _session->getSession();
             invariantWTOK( s->commit_transaction(s, NULL) );
+            LOG(2) << "WT commit";
             _active = false;
         }
     }
