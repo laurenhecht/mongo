@@ -33,7 +33,6 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_session_cache.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
 #include "mongo/util/log.h"
-#include "mongo/util/stacktrace.h"
 
 namespace mongo {
 
