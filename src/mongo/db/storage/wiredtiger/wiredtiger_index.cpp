@@ -419,7 +419,16 @@ namespace {
     }
 
     void WiredTigerIndex::IndexCursor::savePosition() {
-        _savedForCheck = _txn->recoveryUnit();
+        if ( !_eof ) {
+            _savedKey = getKey().getOwned();
+            _savedLoc = getDiskLoc();
+        }
+
+        _savedForCheck = dynamic_cast<WiredTigerRecoveryUnit*>( _txn->recoveryUnit() );
+        if ( _savedForCheck->depth() == 0 ) {
+            _cursor.close();
+            _savedForCheck->closeTransaction();
+        }
         _txn = NULL;
     }
 
@@ -427,6 +436,12 @@ namespace {
         // Update the session handle with our new operation context.
         _txn = txn;
         invariant( _savedForCheck == txn->recoveryUnit() );
+        if ( _savedForCheck->depth() > 0 )
+            return;
+        if ( _eof )
+            return;
+        _cursor.reopen();
+        _locate(_savedKey, _savedLoc);
     }
 
     SortedDataInterface::Cursor* WiredTigerIndex::newCursor(
@@ -446,26 +461,27 @@ namespace {
     class WiredTigerBuilderImpl : public SortedDataBuilderInterface {
     public:
         WiredTigerBuilderImpl(WiredTigerIndex &idx, OperationContext *txn, bool dupsAllowed)
-                : _idx(idx), _txn(txn), _dupsAllowed(dupsAllowed), _count(0) { }
+            : _idx(idx), _txn(txn), _uow(txn), _dupsAllowed(dupsAllowed), _count(0) { }
 
         ~WiredTigerBuilderImpl() { }
 
         Status addKey(const BSONObj& key, const DiskLoc& loc) {
             Status s = _idx.insert(_txn, key, loc, _dupsAllowed);
-            if (s.isOK())
-                _count++;
+            if (s.isOK()) {
+                if ( _count++ % 100 == 0 )
+                    _uow.commit();
+            }
             return s;
         }
 
         void commit(bool mayInterrupt) {
-            // this is bizarre, but required as part of the contract
-            WriteUnitOfWork uow( _txn );
-            uow.commit();
+            _uow.commit();
         }
 
     private:
         WiredTigerIndex &_idx;
         OperationContext *_txn;
+        WriteUnitOfWork _uow;
         bool _dupsAllowed;
         unsigned long long _count;
     };

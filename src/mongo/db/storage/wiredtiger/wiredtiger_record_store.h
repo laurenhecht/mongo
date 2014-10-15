@@ -178,7 +178,10 @@ namespace mongo {
 
             const WiredTigerRecordStore& _rs;
             OperationContext* _txn;
-            RecoveryUnit* _savedRecoveryUnit; // only used to sanity check between save/restore
+
+            // only used to sanity check between save/restore
+            WiredTigerRecoveryUnit* _savedRecoveryUnit;
+
             bool _tailable;
             CollectionScanParams::Direction _dir;
             scoped_ptr<WiredTigerCursor> _cursor;

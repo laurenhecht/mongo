@@ -434,4 +434,113 @@ namespace mongo {
 
     }
 
+    TEST( RecordStoreTestHarness, CursorSaveRestore ) {
+        const int N = 10;
+
+        scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
+        scoped_ptr<RecordStore> rs( harnessHelper->newNonCappedRecordStore() );
+
+        {
+            scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
+            ASSERT_EQUALS( 0, rs->numRecords( opCtx.get() ) );
+        }
+
+        {
+            scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
+            {
+                WriteUnitOfWork uow( opCtx.get() );
+                for ( int i = 0; i < N; i++ ) {
+                    string s = str::stream() << "eliot" << i;
+                    ASSERT_OK( rs->insertRecord( opCtx.get(), s.c_str(), s.size() + 1, false ).getStatus() );
+                }
+                uow.commit();
+            }
+        }
+
+        {
+            scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
+            ASSERT_EQUALS( N, rs->numRecords( opCtx.get() ) );
+        }
+
+        {
+            int x = 0;
+            scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
+            scoped_ptr<RecordIterator> it( rs->getIterator( opCtx.get() ) );
+            while ( !it->isEOF() ) {
+                DiskLoc loc = it->getNext();
+                RecordData data = it->dataFor( loc );
+                string s = str::stream() << "eliot" << x++;
+                ASSERT_EQUALS( s, data.data() );
+                it->saveState();
+                it->restoreState( opCtx.get() );
+            }
+            ASSERT_EQUALS( N, x );
+        }
+
+        {
+            int x = N;
+            scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
+            scoped_ptr<RecordIterator> it( rs->getIterator( opCtx.get(),
+                                                           DiskLoc(),
+                                                           false,
+                                                           CollectionScanParams::BACKWARD ) );
+            while ( !it->isEOF() ) {
+                DiskLoc loc = it->getNext();
+                RecordData data = it->dataFor( loc );
+                string s = str::stream() << "eliot" << --x;
+                ASSERT_EQUALS( s, data.data() );
+                it->saveState();
+                it->restoreState( opCtx.get() );
+            }
+            ASSERT_EQUALS( 0, x );
+        }
+
+    }
+
+    TEST( RecordStoreTestHarness, CursorDelete ) {
+
+        scoped_ptr<HarnessHelper> harnessHelper( newHarnessHelper() );
+        scoped_ptr<RecordStore> rs( harnessHelper->newNonCappedRecordStore() );
+
+        {
+            scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
+            {
+                WriteUnitOfWork uow( opCtx.get() );
+                ASSERT_OK( rs->insertRecord( opCtx.get(), "a", 2, false ).getStatus() );
+                ASSERT_OK( rs->insertRecord( opCtx.get(), "b", 2, false ).getStatus() );
+                ASSERT_OK( rs->insertRecord( opCtx.get(), "c", 2, false ).getStatus() );
+                uow.commit();
+            }
+        }
+
+        {
+            scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
+            scoped_ptr<RecordIterator> it( rs->getIterator( opCtx.get() ) );
+            ASSERT( !it->isEOF() );
+            DiskLoc loc = it->getNext();
+            RecordData data = it->dataFor( loc );
+            ASSERT_EQUALS( string("a"), data.data() );
+            
+            loc = it->getNext();
+            data = it->dataFor( loc );
+            ASSERT_EQUALS( string("b"), data.data() );
+
+            it->saveState();
+            {
+                WriteUnitOfWork uow( opCtx.get() );
+                rs->deleteRecord( opCtx.get(), loc );
+                uow.commit();
+            }
+            it->restoreState( opCtx.get() );
+
+            loc = it->getNext();
+            data = it->dataFor( loc );
+            ASSERT_EQUALS( string("c"), data.data() );
+
+            ASSERT( it->isEOF() );
+        }
+
+    }
+
+
 }

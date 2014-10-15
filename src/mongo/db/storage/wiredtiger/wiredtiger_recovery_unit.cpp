@@ -139,6 +139,17 @@ namespace mongo {
         invariantWTOK( s->begin_transaction(s, NULL) );
     }
 
+    void WiredTigerRecoveryUnit::closeTransaction() {
+        invariant( _changes.empty() );
+        invariant( _depth == 0 );
+
+        if ( _active ) {
+            WT_SESSION *s = _session->getSession();
+            invariantWTOK( s->commit_transaction(s, NULL) );
+            _active = false;
+        }
+    }
+
     // ---------------------
 
     WiredTigerCursor::WiredTigerCursor(const std::string& uri, uint64_t id, WiredTigerRecoveryUnit* ru) {
@@ -170,4 +181,11 @@ namespace mongo {
         return _cursor;
     }
 
+    void WiredTigerCursor::close() {
+        invariantWTOK( _cursor->reset( _cursor ) );
+    }
+
+    void WiredTigerCursor::reopen() {
+        // no-op
+    }
 }

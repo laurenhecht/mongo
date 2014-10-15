@@ -141,7 +141,9 @@ namespace mongo {
                 bool _eof;
 
                 // For save/restorePosition check
-                RecoveryUnit* _savedForCheck;
+                WiredTigerRecoveryUnit* _savedForCheck;
+                BSONObj _savedKey;
+                DiskLoc _savedLoc;
             };
 
         std::string _uri;

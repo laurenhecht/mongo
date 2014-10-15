@@ -75,6 +75,7 @@ namespace mongo {
         int depth() const { return _depth; }
 
         void restartTransaction();
+        void closeTransaction();
 
         static WiredTigerRecoveryUnit* get(OperationContext *txn);
 
@@ -106,6 +107,9 @@ namespace mongo {
 
         WT_CURSOR* get() const;
         WT_CURSOR* operator->() const { return get(); }
+
+        void close();
+        void reopen();
 
     private:
         void _init( const std::string& uri, uint64_t uriID, WiredTigerRecoveryUnit* ru );

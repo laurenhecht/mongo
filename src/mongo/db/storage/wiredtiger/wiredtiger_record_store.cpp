@@ -575,14 +575,14 @@ namespace mongo {
             ret = c->search_near(c, &cmp);
             invariantWTOK(ret);
             if (_forward()) {
-                // return <= loc
-                if (cmp > 0)
-                    ret = c->prev(c);
-            }
-            else {
                 // return >= loc
                 if (cmp < 0)
                     ret = c->next(c);
+            }
+            else {
+                // return <= loc
+                if (cmp > 0)
+                    ret = c->prev(c);
             }
         }
         if (ret != WT_NOTFOUND) invariantWTOK(ret);
@@ -674,7 +674,11 @@ namespace mongo {
 
         // the cursor and recoveryUnit are valid on restore
         // so we just record the recoveryUnit to make sure
-        _savedRecoveryUnit = _txn->recoveryUnit();
+        _savedRecoveryUnit = dynamic_cast<WiredTigerRecoveryUnit*>( _txn->recoveryUnit() );
+        if ( _savedRecoveryUnit->depth() == 0 ) {
+            _cursor->close();
+            _savedRecoveryUnit->closeTransaction();
+        }
         _txn = NULL;
     }
 
@@ -685,6 +689,35 @@ namespace mongo {
         // case
         _txn = txn;
         invariant( _savedRecoveryUnit == txn->recoveryUnit() );
+
+        if ( _savedRecoveryUnit->depth() > 0 ) {
+            return true;
+        }
+
+        if ( _eof && !_tailable ) {
+            return true;
+        }
+
+        _cursor->reopen();
+
+        DiskLoc saved = _lastLoc;
+        _locate( saved, false );
+        if ( _eof ) {
+            _lastLoc = DiskLoc();
+        }
+        else if ( _curr() != saved ) {
+            if ( _tailable ) {
+                // wrap, sad
+                _eof = true;
+                return false;
+            }
+            // doc deleted, we're ok where we are
+        }
+        else {
+            // we found where we left off
+            _getNext();
+        }
+
         return true;
     }
 
