@@ -175,22 +175,4 @@ namespace mongo {
         OperationContext* const _txn;
     };
 
-    class ReadUnitOfWork {
-        MONGO_DISALLOW_COPYING(ReadUnitOfWork);
-    public:
-        ReadUnitOfWork(OperationContext* txn)
-                 : _txn(txn) {
-            _txn->recoveryUnit()->beginUnitOfWork();
-        }
-
-        ~ReadUnitOfWork() {
-            _txn->recoveryUnit()->endUnitOfWork();
-        }
-
-
-    private:
-        OperationContext* const _txn;
-    };
-
-
 }  // namespace mongo
