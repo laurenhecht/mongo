@@ -27,27 +27,21 @@
  *    it in the license file.
  */
 
+#pragma once
+
 #include <boost/shared_ptr.hpp>
 #include <wiredtiger.h>
 
 #include "mongo/db/storage/index_entry_comparison.h"
 #include "mongo/db/storage/sorted_data_interface.h"
-
 #include "mongo/db/storage/wiredtiger/wiredtiger_recovery_unit.h"
-
-
-#pragma once
 
 namespace mongo {
     class IndexCatalogEntry;
     struct WiredTigerItem;
 
     class WiredTigerIndex : public SortedDataInterface {
-        public:
-        // Translate a ns and idx into a WiredTiger table name
-        static std::string toTableName(const std::string &ns, const std::string &idxName) {
-            return ns + ".$" + idxName;
-        }
+    public:
 
         static int Create(OperationContext* txn,
                           const std::string& uri,
@@ -58,13 +52,12 @@ namespace mongo {
         static bool _search(WT_CURSOR *c, const BSONObj &key, const DiskLoc& loc, bool forward);
 
         /**
-         * @param unique - If this is a uniqu index.
+         * @param unique - If this is a unique index.
          *                 Note: even if unique, it may be allowed ot be non-unique at times.
          */
-        WiredTigerIndex(const std::string &uri, bool unique );
+        WiredTigerIndex(const std::string &uri );
 
-        virtual SortedDataBuilderInterface* getBulkBuilder(
-                OperationContext* txn, bool dupsAllowed);
+        virtual SortedDataBuilderInterface* getBulkBuilder(OperationContext* txn, bool dupsAllowed);
 
         virtual Status insert(OperationContext* txn,
                               const BSONObj& key,
@@ -89,71 +82,118 @@ namespace mongo {
         bool isDup(WT_CURSOR *c, const BSONObj& key, const DiskLoc& loc );
 
         virtual SortedDataInterface::Cursor* newCursor(
-                OperationContext* txn, int direction) const;
+                                                       OperationContext* txn, int direction) const;
 
         virtual Status initAsEmpty(OperationContext* txn);
 
         const std::string &GetURI() const;
         uint64_t instanceId() const { return _instanceId; }
-        bool unique() const { return _unique; }
 
-        private:
-            class IndexCursor : public SortedDataInterface::Cursor {
-                public:
-                IndexCursor(const WiredTigerIndex &idx,
+        virtual bool unique() const = 0;
+
+    protected:
+
+        virtual Status _insert( WT_CURSOR* c,
+                                const BSONObj& key,
+                                const DiskLoc& loc,
+                                bool dupsAllowed ) = 0;
+
+        virtual bool _unindex( WT_CURSOR* c,
+                               const BSONObj& key,
+                               const DiskLoc& loc,
+                               bool dupsAllowed ) = 0;
+
+        class IndexCursor : public SortedDataInterface::Cursor {
+        public:
+            IndexCursor(const WiredTigerIndex &idx,
                         OperationContext *txn,
                         bool forward);
 
-                virtual ~IndexCursor();
+            virtual ~IndexCursor();
 
-                virtual int getDirection() const;
+            virtual int getDirection() const;
 
-                virtual bool isEOF() const;
+            virtual bool isEOF() const;
 
-                virtual bool pointsToSamePlaceAs(
-                        const SortedDataInterface::Cursor &genother) const;
+            virtual bool pointsToSamePlaceAs(const SortedDataInterface::Cursor &genother) const;
 
-                virtual void aboutToDeleteBucket(const DiskLoc& bucket);
+            virtual void aboutToDeleteBucket(const DiskLoc& bucket);
 
-                bool _locate(const BSONObj &key, const DiskLoc& loc);
+            virtual bool locate(const BSONObj &key, const DiskLoc& loc);
 
-                virtual bool locate(const BSONObj &key, const DiskLoc& loc);
+            virtual void customLocate(const BSONObj& keyBegin,
+                                      int keyBeginLen,
+                                      bool afterKey,
+                                      const vector<const BSONElement*>& keyEnd,
+                                      const vector<bool>& keyEndInclusive);
 
-                virtual void customLocate(const BSONObj& keyBegin,
-                                          int keyBeginLen,
-                                          bool afterKey,
-                                          const vector<const BSONElement*>& keyEnd,
-                                          const vector<bool>& keyEndInclusive);
+            void advanceTo(const BSONObj &keyBegin,
+                           int keyBeginLen,
+                           bool afterKey,
+                           const vector<const BSONElement*>& keyEnd,
+                           const vector<bool>& keyEndInclusive);
 
-                void advanceTo(const BSONObj &keyBegin,
-                               int keyBeginLen,
-                               bool afterKey,
-                               const vector<const BSONElement*>& keyEnd,
-                               const vector<bool>& keyEndInclusive);
+            virtual BSONObj getKey() const;
 
-                virtual BSONObj getKey() const;
+            virtual DiskLoc getDiskLoc() const;
 
-                virtual DiskLoc getDiskLoc() const;
+            virtual void advance();
 
-                virtual void advance();
+            virtual void savePosition();
 
-                virtual void savePosition();
+            virtual void restorePosition( OperationContext *txn );
 
-                virtual void restorePosition( OperationContext *txn );
+        private:
+            bool _locate(const BSONObj &key, const DiskLoc& loc);
 
-            private:
-                OperationContext *_txn;
-                WiredTigerCursor _cursor;
-                const WiredTigerIndex &_idx;    // Someone else owns this.
-                bool _forward;
-                bool _eof;
+            OperationContext *_txn;
+            WiredTigerCursor _cursor;
+            const WiredTigerIndex &_idx;    // Someone else owns this.
+            bool _forward;
+            bool _eof;
 
-                // For save/restorePosition check
-                RecoveryUnit* _savedForCheck;
-            };
+            // For save/restorePosition check
+            RecoveryUnit* _savedForCheck;
+        };
 
         std::string _uri;
-        bool _unique;
         uint64_t _instanceId;
     };
+
+
+    class WiredTigerIndexUnique : public WiredTigerIndex {
+    public:
+        WiredTigerIndexUnique( const std::string& uri );
+
+        virtual bool unique() const { return true; }
+
+        virtual Status _insert( WT_CURSOR* c,
+                                const BSONObj& key,
+                                const DiskLoc& loc,
+                                bool dupsAllowed );
+
+        virtual bool _unindex( WT_CURSOR* c,
+                               const BSONObj& key,
+                               const DiskLoc& loc,
+                               bool dupsAllowed );
+    };
+
+    class WiredTigerIndexStandard : public WiredTigerIndex {
+    public:
+        WiredTigerIndexStandard( const std::string& uri );
+
+        virtual bool unique() const { return false; }
+
+        virtual Status _insert( WT_CURSOR* c,
+                                const BSONObj& key,
+                                const DiskLoc& loc,
+                                bool dupsAllowed );
+
+        virtual bool _unindex( WT_CURSOR* c,
+                               const BSONObj& key,
+                               const DiskLoc& loc,
+                               bool dupsAllowed );
+
+    };
+
 } // namespace

@@ -55,7 +55,6 @@ namespace mongo {
 
     void WiredTigerRecoveryUnit::_commit() {
         if ( _session && _active ) {
-            log() << "WT commit";
             WT_SESSION *s = _session->getSession();
             int ret = s->commit_transaction(s, NULL);
             invariantWTOK(ret);
@@ -70,7 +69,6 @@ namespace mongo {
 
     void WiredTigerRecoveryUnit::_abort() {
         if ( _session && _active ) {
-            log() << "WT rollback";
             WT_SESSION *s = _session->getSession();
             int ret = s->rollback_transaction(s, NULL);
             invariantWTOK(ret);
@@ -97,7 +95,6 @@ namespace mongo {
 
     void WiredTigerRecoveryUnit::endUnitOfWork() {
         _depth--;
-        log() << "FUCK: " << _depth << " " << _active;
         if ( _depth == 0 ) {
             _abort();
         }

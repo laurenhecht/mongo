@@ -70,7 +70,9 @@ namespace mongo {
             string uri = "table:" + ns;
             invariantWTOK( WiredTigerIndex::Create( &txn, uri, "", &desc ) );
 
-            return new WiredTigerIndex( uri, unique );
+            if ( unique )
+                return new WiredTigerIndexUnique( uri );
+            return new WiredTigerIndexStandard( uri );
         }
 
         virtual RecoveryUnit* newRecoveryUnit() {

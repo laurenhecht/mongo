@@ -131,7 +131,9 @@ namespace mongo {
     SortedDataInterface* WiredTigerKVEngine::getSortedDataInterface( OperationContext* opCtx,
                                                                      const StringData& ident,
                                                                      const IndexDescriptor* desc ) {
-        return new WiredTigerIndex( _uri( ident ), desc->unique() );
+        if ( desc->unique() )
+            return new WiredTigerIndexUnique( _uri( ident ) );
+        return new WiredTigerIndexStandard( _uri( ident ) );
     }
 
     Status WiredTigerKVEngine::dropSortedDataInterface( OperationContext* opCtx,
