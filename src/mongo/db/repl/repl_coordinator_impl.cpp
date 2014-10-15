@@ -250,10 +250,12 @@ namespace {
         }
 
         {
+            OID rid = _externalState->ensureMe(txn);
+
             boost::lock_guard<boost::mutex> lk(_mutex);
             fassert(18822, !_inShutdown);
             _setConfigState_inlock(kConfigStartingUp);
-            _myRID = _externalState->ensureMe(txn);
+            _myRID = rid;
         }
 
         if (!_settings.usingReplSets()) {
@@ -883,6 +885,12 @@ namespace {
 
         _topCoord->setStepDownTime(stepdownUntil);
         _topCoord->stepDown();
+        // Schedule work to (potentially) step back up once the stepdown period has ended.
+        _replExecutor.scheduleWorkAt(stepdownUntil,
+                                     stdx::bind(&ReplicationCoordinatorImpl::_handleTimePassing,
+                                                this,
+                                                stdx::placeholders::_1));
+
         boost::unique_lock<boost::mutex> lk(_mutex);
         _updateCurrentMemberStateFromTopologyCoordinator_inlock();
         // Wake up any threads blocked in awaitReplication
@@ -894,7 +902,23 @@ namespace {
         }
         lk.unlock();
         _externalState->closeConnections();
+        _externalState->clearShardingState();
         *result = Status::OK();
+    }
+
+    void ReplicationCoordinatorImpl::_handleTimePassing(
+            const ReplicationExecutor::CallbackData& cbData) {
+        if (!cbData.status.isOK()) {
+            return;
+        }
+
+        if (_topCoord->becomeCandidateIfStepdownPeriodOverAndSingleNodeSet(_replExecutor.now())) {
+            _topCoord->processWinElection(OID::gen(), getNextGlobalOptime());
+            _isWaitingForDrainToComplete = true;
+
+            boost::lock_guard<boost::mutex> lock(_mutex);
+            _updateCurrentMemberStateFromTopologyCoordinator_inlock();
+        }
     }
 
     bool ReplicationCoordinatorImpl::isMasterForReportingPurposes() {
@@ -1228,19 +1252,43 @@ namespace {
     Status ReplicationCoordinatorImpl::processReplSetFreeze(int secs, BSONObjBuilder* resultObj) {
         Status result(ErrorCodes::InternalError, "didn't set status in prepareFreezeResponse");
         CBHStatus cbh = _replExecutor.scheduleWork(
-            stdx::bind(&TopologyCoordinator::prepareFreezeResponse,
-                       _topCoord.get(),
+            stdx::bind(&ReplicationCoordinatorImpl::_processReplSetFreeze_finish,
+                       this,
                        stdx::placeholders::_1,
-                       _replExecutor.now(),
                        secs,
                        resultObj,
                        &result));
         if (cbh.getStatus() == ErrorCodes::ShutdownInProgress) {
-            return Status(ErrorCodes::ShutdownInProgress, "replication shutdown in progress");
+            return cbh.getStatus();
         }
         fassert(18641, cbh.getStatus());
         _replExecutor.wait(cbh.getValue());
         return result;
+    }
+
+    void ReplicationCoordinatorImpl::_processReplSetFreeze_finish(
+            const ReplicationExecutor::CallbackData& cbData,
+            int secs,
+            BSONObjBuilder* response,
+            Status* result) {
+        if (cbData.status == ErrorCodes::CallbackCanceled) {
+            *result = Status(ErrorCodes::ShutdownInProgress, "replication system is shutting down");
+            return;
+        }
+
+        _topCoord->prepareFreezeResponse(_replExecutor.now(), secs, response);
+
+        if (_topCoord->getRole() == TopologyCoordinator::Role::candidate) {
+            // If we just unfroze and ended our stepdown period and we are a one node replica set,
+            // the topology coordinator will have gone into the candidate role to signal that we
+            // need to elect ourself.
+            _topCoord->processWinElection(OID::gen(), getNextGlobalOptime());
+            _isWaitingForDrainToComplete = true;
+
+            boost::lock_guard<boost::mutex> lock(_mutex);
+            _updateCurrentMemberStateFromTopologyCoordinator_inlock();
+        }
+        *result = Status::OK();
     }
 
     Status ReplicationCoordinatorImpl::processHeartbeat(const ReplSetHeartbeatArgs& args,
@@ -1321,7 +1369,7 @@ namespace {
             return Status(ErrorCodes::NotYetInitialized,
                           "Node not yet initialized; use the replSetInitiate command");
         case kConfigReplicationDisabled:
-            return Status(ErrorCodes::NoReplicationEnabled, "Node is not a replica set member");
+            invariant(false); // should be unreachable due to !_settings.usingReplSets() check above
         case kConfigInitiating:
         case kConfigReconfiguring:
         case kConfigHBReconfiguring:
@@ -1362,7 +1410,7 @@ namespace {
         if (!status.isOK()) {
             error() << "replSetReconfig got " << status << " while parsing " << newConfigObj <<
                 rsLog;
-            return status;
+            return Status(ErrorCodes::InvalidReplicaSetConfig, status.reason());;
         }
         if (newConfig.getReplSetName() != _settings.ourSetName()) {
             str::stream errmsg;
@@ -1370,7 +1418,7 @@ namespace {
                 newConfig.getReplSetName() << ", but command line reports " <<
                 _settings.ourSetName() << "; rejecting";
             error() << std::string(errmsg);
-            return Status(ErrorCodes::BadValue, errmsg);
+            return Status(ErrorCodes::InvalidReplicaSetConfig, errmsg);
         }
 
         StatusWith<int> myIndex = validateConfigForReconfig(
@@ -1381,7 +1429,8 @@ namespace {
         if (!myIndex.isOK()) {
             error() << "replSetReconfig got " << myIndex.getStatus() << " while validating " <<
                 newConfigObj << rsLog;
-            return myIndex.getStatus();
+            return Status(ErrorCodes::NewReplicaSetConfigurationIncompatible,
+                          myIndex.getStatus().reason());
         }
 
         log() << "replSetReconfig config object with " << newConfig.getNumMembers() <<
@@ -1620,6 +1669,8 @@ namespace {
             const ReplicaSetConfig& newConfig,
             int myIndex) {
          invariant(_settings.usingReplSets());
+         const MemberState previousState = _currentState;
+
          _cancelHeartbeats();
          _setConfigState_inlock(kConfigSteady);
          _rsConfig = newConfig;
@@ -1639,11 +1690,11 @@ namespace {
              _isWaitingForDrainToComplete = true;
          }
 
-         MemberState previousState = _currentState;
          _updateCurrentMemberStateFromTopologyCoordinator_inlock();
          if (_currentState.removed() || (previousState.primary() && !_currentState.primary())) {
              // Close connections on stepdown or when removed from the replica set.
              _externalState->closeConnections();
+             _externalState->clearShardingState();
              // Closing all connections will make the applier choose a new sync source, so we don't
              // need to do that explicitly in this case.
          }

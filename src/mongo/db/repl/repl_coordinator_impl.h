@@ -337,11 +337,25 @@ namespace repl {
                                          BSONObjBuilder* response,
                                          Status* result);
 
-
+        /**
+         * Bottom half of processReplSetFreeze.
+         */
+        void _processReplSetFreeze_finish(const ReplicationExecutor::CallbackData& cbData,
+                                          int secs,
+                                          BSONObjBuilder* response,
+                                          Status* result);
         /*
          * Bottom half of clearSyncSourceBlacklist
          */
         void _clearSyncSourceBlacklist_finish(const ReplicationExecutor::CallbackData& cbData);
+
+        /**
+         * Scheduled to cause the ReplicationCoordinator to reconsider any state that might
+         * need to change as a result of time passing - for instance becoming PRIMARY when a single
+         * node replica set member's stepDown period ends.
+         */
+        void _handleTimePassing(const ReplicationExecutor::CallbackData& cbData);
+
         /*
          * Returns the OpTime of the last applied operation on this node.
          */
