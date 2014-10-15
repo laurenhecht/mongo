@@ -34,7 +34,6 @@
 #include "mongo/db/storage/record_data.h"
 #include "mongo/db/storage/record_store.h"
 #include "mongo/unittest/unittest.h"
-#include "mongo/util/log.h"
 
 using std::set;
 using std::string;

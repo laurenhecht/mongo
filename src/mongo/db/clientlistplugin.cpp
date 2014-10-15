@@ -35,7 +35,6 @@
 #include "mongo/db/global_environment_experiment.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/dbwebserver.h"
-#include "mongo/util/log.h"
 #include "mongo/util/mongoutils/html.h"
 
 

@@ -176,20 +176,17 @@ namespace mongo {
     };
 
     class ReadUnitOfWork {
-        MONGO_DISALLOW_COPYING(WriteUnitOfWork);
+        MONGO_DISALLOW_COPYING(ReadUnitOfWork);
     public:
-        WriteUnitOfWork(OperationContext* txn)
+        ReadUnitOfWork(OperationContext* txn)
                  : _txn(txn) {
             _txn->recoveryUnit()->beginUnitOfWork();
         }
 
-        ~WriteUnitOfWork() {
+        ~ReadUnitOfWork() {
             _txn->recoveryUnit()->endUnitOfWork();
         }
 
-        void commit() {
-            _txn->recoveryUnit()->commitUnitOfWork();
-        }
 
     private:
         OperationContext* const _txn;
