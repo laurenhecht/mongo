@@ -38,6 +38,7 @@
 #include "mongo/db/jsobj.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/operation_context_impl.h"
+#include "mongo/util/log.h"
 
 namespace mongo {
 namespace repl {
@@ -72,6 +73,7 @@ namespace {
     }
 
     void setMinValid(OperationContext* ctx, OpTime ts) {
+        log() << "here : " << ctx->lockState()->inAWriteUnitOfWork();
         Lock::DBLock lk(ctx->lockState(), "local", MODE_X);
         WriteUnitOfWork wunit(ctx);
         Helpers::putSingleton(ctx, minvalidNS, BSON("$set" << BSON("ts" << ts)));

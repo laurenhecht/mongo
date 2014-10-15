@@ -29,6 +29,7 @@
  *    it in the license file.
  */
 
+#include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_recovery_unit.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_session_cache.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
@@ -51,6 +52,14 @@ namespace mongo {
             _sessionCache->releaseSession( _session );
             _session = NULL;
         }
+    }
+
+    void WiredTigerRecoveryUnit::reportState( BSONObjBuilder* b ) const {
+        b->append( "wt_depth", _depth );
+        b->append( "wt_active", _active );
+        b->append( "wt_everStartedWrite", _everStartedWrite );
+        if ( _active )
+            b->append( "wt_millisSinceCommit", _timer.millis() );
     }
 
     void WiredTigerRecoveryUnit::_commit() {
@@ -125,6 +134,7 @@ namespace mongo {
             int ret = s->begin_transaction(s, NULL);
             invariantWTOK(ret);
             _active = true;
+            _timer.reset();
         }
         return _session;
     }
@@ -137,6 +147,17 @@ namespace mongo {
         WT_SESSION *s = _session->getSession();
         invariantWTOK( s->commit_transaction(s, NULL) );
         invariantWTOK( s->begin_transaction(s, NULL) );
+        _timer.reset();
+    }
+
+    void WiredTigerRecoveryUnit::forceCommit() {
+        if ( !_active )
+            return;
+        
+        WT_SESSION *s = _session->getSession();
+        invariantWTOK( s->commit_transaction(s, NULL) );
+        invariantWTOK( s->begin_transaction(s, NULL) );
+        _timer.reset();
     }
 
     void WiredTigerRecoveryUnit::closeTransaction() {

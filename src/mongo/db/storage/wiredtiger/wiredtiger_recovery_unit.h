@@ -40,6 +40,7 @@
 
 #include "mongo/db/operation_context.h"
 #include "mongo/db/storage/recovery_unit.h"
+#include "mongo/util/timer.h"
 
 namespace mongo {
 
@@ -51,6 +52,8 @@ namespace mongo {
         WiredTigerRecoveryUnit(WiredTigerSessionCache* sc);
 
         virtual ~WiredTigerRecoveryUnit();
+
+        virtual void reportState( BSONObjBuilder* b ) const;
 
         virtual void beginUnitOfWork();
 
@@ -76,6 +79,7 @@ namespace mongo {
 
         void restartTransaction();
         void closeTransaction();
+        void forceCommit();
 
         static WiredTigerRecoveryUnit* get(OperationContext *txn);
 
@@ -90,6 +94,7 @@ namespace mongo {
         int _depth;
         bool _active;
         bool _everStartedWrite;
+        Timer _timer;
 
         typedef boost::shared_ptr<Change> ChangePtr;
         typedef std::vector<ChangePtr> Changes;

@@ -461,27 +461,29 @@ namespace {
     class WiredTigerBuilderImpl : public SortedDataBuilderInterface {
     public:
         WiredTigerBuilderImpl(WiredTigerIndex &idx, OperationContext *txn, bool dupsAllowed)
-            : _idx(idx), _txn(txn), _uow(txn), _dupsAllowed(dupsAllowed), _count(0) { }
+            : _idx(idx), _txn(txn), _dupsAllowed(dupsAllowed), _count(0) {
+        }
 
         ~WiredTigerBuilderImpl() { }
 
         Status addKey(const BSONObj& key, const DiskLoc& loc) {
+            WriteUnitOfWork uow( _txn );
             Status s = _idx.insert(_txn, key, loc, _dupsAllowed);
             if (s.isOK()) {
-                if ( _count++ % 100 == 0 )
-                    _uow.commit();
+                _count++;
+                uow.commit();
             }
             return s;
         }
 
         void commit(bool mayInterrupt) {
-            _uow.commit();
+            WiredTigerRecoveryUnit* ru = dynamic_cast<WiredTigerRecoveryUnit*>( _txn->recoveryUnit() );
+            ru->forceCommit();
         }
 
     private:
         WiredTigerIndex &_idx;
         OperationContext *_txn;
-        WriteUnitOfWork _uow;
         bool _dupsAllowed;
         unsigned long long _count;
     };

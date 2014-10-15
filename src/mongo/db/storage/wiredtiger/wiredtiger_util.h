@@ -47,8 +47,10 @@ namespace mongo {
             return Status::OK();
 
 
-        if ( retCode == WT_DEADLOCK )
+        if ( retCode == WT_DEADLOCK ) {
+            invariant(false);
             throw DeadLockException();
+        }
 
         // TODO convert specific codes rather than just using INTERNAL_ERROR for everything.
         return Status(ErrorCodes::InternalError,
