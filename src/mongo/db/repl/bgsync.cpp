@@ -221,11 +221,7 @@ namespace {
             _syncSourceHost = HostAndPort();
         }
         _syncSourceReader.resetConnection();
-        {
-            WriteUnitOfWork uow( txn );
-            _syncSourceReader.connectToSyncSource(txn, lastOpTimeFetched, _replCoord);
-            uow.commit();
-        }
+        _syncSourceReader.connectToSyncSource(txn, lastOpTimeFetched, _replCoord);
 
         {
             boost::unique_lock<boost::mutex> lock(_mutex);
