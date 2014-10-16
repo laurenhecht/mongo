@@ -10,20 +10,17 @@ t.drop();
 t.ensureIndex({a:1},true);
 
 t.insert({a:1});
+assert.eq( 1,t.find({a:1}).count() );
 
 x = { a : 2 };
 t.save(x);
 
-{
+assert( t.count() == 2, "count wrong B");
 
- assert( t.count() == 2, "count wrong B");
+x.a = 1;
+x.filler = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+t.save(x); // should fail, not unique.
 
- x.a = 1;
- x.filler = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
- t.save(x); // should fail, not unique.
-
- assert( t.count() == 2,"count wrong" );
- assert( t.find({a:1}).count() == 1,"bfail1" );
- assert( t.find({a:2}).count() == 1,"bfail2" );
-
-}
+assert.eq( 2, t.count(),"count wrong" );
+assert.eq( 1,t.find({a:1}).count(),"bfail1" );
+assert( 1, t.find({a:2}).count(),"bfail2" );
