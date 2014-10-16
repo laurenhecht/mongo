@@ -64,8 +64,6 @@
 #include "mongo/util/log.h"
 #include "mongo/util/mongoutils/str.h"
 
-#include "mongo/db/storage/wiredtiger/wiredtiger_recovery_unit.h"
-
 namespace mongo {
 
     namespace {
@@ -1070,7 +1068,7 @@ namespace mongo {
 
         WriteUnitOfWork wunit(txn);
         StatusWith<DiskLoc> status = collection->insertDocument( txn, docToInsert, true );
-        log() << "RES : " << status.getStatus();
+
         if ( !status.isOK() ) {
             result->setError(toWriteError(status.getStatus()));
         }
