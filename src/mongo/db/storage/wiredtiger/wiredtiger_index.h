@@ -48,9 +48,6 @@ namespace mongo {
                           const std::string& extraConfig,
                           const IndexDescriptor* desc);
 
-        static bool _search(WT_CURSOR *c, const WiredTigerItem& item, bool forward);
-        static bool _search(WT_CURSOR *c, const BSONObj &key, const DiskLoc& loc, bool forward);
-
         /**
          * @param unique - If this is a unique index.
          *                 Note: even if unique, it may be allowed ot be non-unique at times.
@@ -86,7 +83,8 @@ namespace mongo {
 
         virtual Status initAsEmpty(OperationContext* txn);
 
-        const std::string &GetURI() const;
+        const std::string& uri() const { return _uri; }
+
         uint64_t instanceId() const { return _instanceId; }
 
         virtual bool unique() const = 0;
@@ -105,15 +103,15 @@ namespace mongo {
 
         class IndexCursor : public SortedDataInterface::Cursor {
         public:
-            IndexCursor(const WiredTigerIndex &idx,
+            IndexCursor(const WiredTigerIndex& idx,
                         OperationContext *txn,
                         bool forward);
 
-            virtual ~IndexCursor();
+            virtual ~IndexCursor() { }
 
-            virtual int getDirection() const;
+            virtual int getDirection() const { return _forward ? 1 : -1; }
 
-            virtual bool isEOF() const;
+            virtual bool isEOF() const { return _eof; }
 
             virtual bool pointsToSamePlaceAs(const SortedDataInterface::Cursor &genother) const;
 
@@ -148,9 +146,12 @@ namespace mongo {
 
             OperationContext *_txn;
             WiredTigerCursor _cursor;
-            const WiredTigerIndex &_idx;    // Someone else owns this.
+            const WiredTigerIndex& _idx; // not owned
             bool _forward;
             bool _eof;
+
+            mutable int _uniquePos;
+            mutable int _uniqueLen;
 
             // For save/restorePosition check
             RecoveryUnit* _savedForCheck;

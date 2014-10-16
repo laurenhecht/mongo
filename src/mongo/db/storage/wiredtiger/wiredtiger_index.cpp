@@ -223,16 +223,16 @@ namespace {
     }
 
     void WiredTigerIndex::fullValidate(OperationContext* txn, long long *numKeysOut) const {
-        // TODO check invariants?
-        WiredTigerCursor curwrap(_uri, _instanceId, txn);
-        WT_CURSOR *c = curwrap.get();
-        if (!c)
-            return;
-        int ret;
+        IndexCursor cursor(*this, txn, true );
+        cursor.locate( minKey, minDiskLoc );
         long long count = 0;
-        while ((ret = c->next(c)) == 0)
-            ++count;
-        *numKeysOut = count;
+        while ( !cursor.isEOF() ) {
+            cursor.advance();
+            count++;
+        }
+        if ( numKeysOut ) {
+            *numKeysOut = count;
+        }
     }
 
     Status WiredTigerIndex::dupKeyCheck( OperationContext* txn,
@@ -266,7 +266,10 @@ namespace {
         return Status::OK();
     }
 
-    long long WiredTigerIndex::getSpaceUsedBytes( OperationContext* txn ) const { return 1; }
+    long long WiredTigerIndex::getSpaceUsedBytes( OperationContext* txn ) const {
+        // todo
+        return 1;
+    }
 
     bool WiredTigerIndex::isDup(WT_CURSOR *c, const BSONObj& key, const DiskLoc& loc ) {
         invariant( unique() );
@@ -284,26 +287,73 @@ namespace {
         return found != loc;
     }
 
-    /* Cursor implementation */
+    SortedDataInterface::Cursor* WiredTigerIndex::newCursor(OperationContext* txn,
+                                                            int direction) const {
+        invariant((direction == 1) || (direction == -1));
+        return new IndexCursor(*this, txn, direction == 1);
+    }
+
+    Status WiredTigerIndex::initAsEmpty(OperationContext* txn) {
+        // No-op
+        return Status::OK();
+    }
+
+    class WiredTigerBuilderImpl : public SortedDataBuilderInterface {
+    public:
+        WiredTigerBuilderImpl(WiredTigerIndex* idx,
+                              OperationContext *txn,
+                              bool dupsAllowed)
+            : _idx(idx), _txn(txn), _dupsAllowed(dupsAllowed), _count(0) {
+        }
+
+        ~WiredTigerBuilderImpl() {
+        }
+
+        Status addKey(const BSONObj& key, const DiskLoc& loc) {
+            Status s = _idx->insert(_txn, key, loc, _dupsAllowed);
+            if (s.isOK())
+                _count++;
+            return s;
+        }
+
+        void commit(bool mayInterrupt) {
+            // this is bizarre, but required as part of the contract
+            WriteUnitOfWork uow( _txn );
+            uow.commit();
+        }
+
+    private:
+        WiredTigerIndex* _idx;
+        OperationContext* _txn;
+        bool _dupsAllowed;
+        unsigned long long _count;
+    };
+
+    SortedDataBuilderInterface* WiredTigerIndex::getBulkBuilder( OperationContext* txn,
+                                                                 bool dupsAllowed ) {
+        if ( !dupsAllowed ) {
+            // if we don't allow dups, we better be unique
+            invariant( unique() );
+        }
+        return new WiredTigerBuilderImpl(this, txn, dupsAllowed);
+    }
+
+
+
+    // ----------------------
+
     WiredTigerIndex::IndexCursor::IndexCursor(const WiredTigerIndex &idx,
             OperationContext *txn,
             bool forward)
        : _txn(txn),
-         _cursor(idx.GetURI(), idx.instanceId(), txn ),
+         _cursor(idx.uri(), idx.instanceId(), txn ),
          _idx(idx),
          _forward(forward),
-         _eof(true) {
+         _eof(true),
+         _uniqueLen( -1 ) {
     }
 
-    WiredTigerIndex::IndexCursor::~IndexCursor() {
-    }
-
-    int WiredTigerIndex::IndexCursor::getDirection() const { return _forward ? 1 : -1; }
-
-    bool WiredTigerIndex::IndexCursor::isEOF() const { return _eof; }
-
-    bool WiredTigerIndex::IndexCursor::pointsToSamePlaceAs(
-            const SortedDataInterface::Cursor &genother) const {
+    bool WiredTigerIndex::IndexCursor::pointsToSamePlaceAs( const SortedDataInterface::Cursor &genother) const {
         const WiredTigerIndex::IndexCursor &other =
             dynamic_cast<const WiredTigerIndex::IndexCursor &>(genother);
 
@@ -311,47 +361,110 @@ namespace {
             return true;
         else if ( _eof || other._eof )
             return false;
-        WT_CURSOR *c = _cursor.get(), *otherc = other._cursor.get();
-        int cmp, ret = c->compare(c, otherc, &cmp);
-        invariantWTOK(ret);
-        return cmp == 0;
+
+        if ( getDiskLoc() != other.getDiskLoc() )
+            return false;
+
+        return getKey() == other.getKey();
     }
 
     void WiredTigerIndex::IndexCursor::aboutToDeleteBucket(const DiskLoc& bucket) {
         invariant(!"aboutToDeleteBucket should not be called");
     }
 
-    bool WiredTigerIndex::_search(WT_CURSOR *c, const BSONObj &key, const DiskLoc& loc, bool forward) {
+    bool WiredTigerIndex::IndexCursor::_locate(const BSONObj &key, const DiskLoc& loc) {
+        _uniqueLen = -1;
+        WT_CURSOR *c = _cursor.get();
+
         DiskLoc searchLoc = loc;
         // Null cursors should start at the zero key to maintain search ordering in the
         // collator.
         // Reverse cursors should start on the last matching key.
         if (loc.isNull())
-            searchLoc = forward ? DiskLoc(0, 0) : DiskLoc(INT_MAX, INT_MAX);
+            searchLoc = _forward ? DiskLoc(0, 0) : DiskLoc(INT_MAX, INT_MAX);
+
         boost::scoped_array<char> data;
         WiredTigerItem myKey = _toItem( key, searchLoc, &data );
-        return ( _search( c, myKey, forward ) );
-    }
 
-    bool WiredTigerIndex::_search(WT_CURSOR *c, const WiredTigerItem& myKey, bool forward) {
-        int cmp = -1, ret;
+        int cmp = -1;
         c->set_key(c, myKey.Get() );
-        ret = c->search_near(c, &cmp);
-
-        // Make sure we land on a matching key
-        if (ret == 0 && (forward ? cmp < 0 : cmp > 0))
-            ret = forward ? c->next(c) : c->prev(c);
-        if (ret != WT_NOTFOUND) invariantWTOK(ret);
-        return (ret == 0);
-    }
 
 
-    bool WiredTigerIndex::IndexCursor::_locate(const BSONObj &key, const DiskLoc& loc) {
-        WT_CURSOR *c = _cursor.get();
-        _eof = !WiredTigerIndex::_search(c, key, loc, _forward);
-        if ( _eof )
+        int ret = c->search_near(c, &cmp);
+        if ( ret == WT_NOTFOUND ) {
+            _eof = true;
             return false;
-        return key == getKey();
+        }
+        invariantWTOK( ret );
+        // Make sure we land on a matching key
+        if ( _forward ? cmp < 0 : cmp > 0 )
+            ret = _forward ? c->next(c) : c->prev(c);
+
+        _eof = ret != 0;
+
+        if ( _eof ) {
+            return false;
+        }
+
+        if ( key != getKey() ) {
+            return false;
+        }
+
+        if ( !_idx.unique() ) {
+            return true;
+        }
+
+        // now we need to check if we have an array situation
+
+        if ( loc.isNull() ) {
+            // no loc specified means start and beginning or end of array as needed
+            // so nothing to do
+            return true;
+        }
+
+        // we're looking for a specific DiskLoc, lets see if we can find
+
+        WT_ITEM item;
+        invariantWTOK( c->get_value(c, &item ) );
+        _uniqueLen = item.size / sizeof(DiskLoc);
+        invariant( _uniqueLen > 0 );
+
+        if ( _forward ) {
+            _uniquePos = 0;
+            for ( ; _uniquePos < _uniqueLen; _uniquePos++ ) {
+                DiskLoc temp;
+                memcpy( &temp,
+                        reinterpret_cast<const char*>(item.data) + ( _uniquePos * sizeof(DiskLoc) ),
+                        sizeof(DiskLoc) );
+                if ( temp == loc )
+                    break;
+
+                if ( loc < temp )
+                    break;
+            }
+        }
+        else {
+            _uniquePos = _uniqueLen-1;
+            for ( ; _uniquePos >= 0; _uniquePos-- ) {
+                DiskLoc temp;
+                memcpy( &temp,
+                        reinterpret_cast<const char*>(item.data) + ( _uniquePos * sizeof(DiskLoc) ),
+                        sizeof(DiskLoc) );
+                if ( temp == loc )
+                    break;
+
+                if ( temp < loc )
+                    break;
+            }
+            _uniquePos = _uniqueLen - 1 - _uniquePos;
+        }
+
+        if ( _uniquePos == _uniqueLen ) {
+            // we need to move to next slot
+            advance();
+        }
+
+        return true;
     }
 
     bool WiredTigerIndex::IndexCursor::locate(const BSONObj &key, const DiskLoc& loc) {
@@ -394,11 +507,34 @@ namespace {
     }
 
     DiskLoc WiredTigerIndex::IndexCursor::getDiskLoc() const {
+        if ( _eof )
+            return DiskLoc();
+
         WT_CURSOR *c = _cursor.get();
         WT_ITEM item;
         if ( _idx.unique() ) {
             invariantWTOK( c->get_value(c, &item ) );
-            return _toDiskLoc( item );
+            if ( _uniqueLen == -1 ) {
+                // first time at this spot
+                _uniqueLen = item.size / sizeof(DiskLoc);
+                invariant( _uniqueLen > 0 );
+                _uniquePos = 0;
+            }
+
+            DiskLoc loc;
+            int posToUse = _uniquePos;
+            if ( !_forward )
+                posToUse = _uniqueLen - 1 - _uniquePos;
+
+
+
+            memcpy( &loc,
+                    reinterpret_cast<const char*>(item.data) + ( posToUse * sizeof(DiskLoc) ),
+                    sizeof(DiskLoc) );
+
+            invariant( posToUse >= 0 && posToUse < _uniqueLen );
+
+            return loc;
         }
         invariantWTOK( c->get_key(c, &item) );
         return makeIndexKeyEntry( &item ).loc;
@@ -408,14 +544,32 @@ namespace {
         // Advance on a cursor at the end is a no-op
         if ( _eof )
             return;
+
+        if ( _idx.unique() ) {
+            if ( _uniqueLen == -1 ) {
+                // we need to investigate
+                getDiskLoc();
+            }
+
+            _uniquePos++; // advance
+
+            if ( _uniquePos < _uniqueLen ) {
+                return;
+            }
+
+        }
+
+        _uniqueLen = -1;
+
+
         WT_CURSOR *c = _cursor.get();
         int ret = _forward ? c->next(c) : c->prev(c);
-        if (ret == WT_NOTFOUND)
+        if ( ret == WT_NOTFOUND ) {
             _eof = true;
-        else {
-            invariantWTOK(ret);
-            _eof = false;
+            return;
         }
+        invariantWTOK(ret);
+        _eof = false;
     }
 
     void WiredTigerIndex::IndexCursor::savePosition() {
@@ -427,59 +581,6 @@ namespace {
         // Update the session handle with our new operation context.
         _txn = txn;
         invariant( _savedForCheck == txn->recoveryUnit() );
-    }
-
-    SortedDataInterface::Cursor* WiredTigerIndex::newCursor(OperationContext* txn,
-                                                            int direction) const {
-        invariant((direction == 1) || (direction == -1));
-        return new IndexCursor(*this, txn, direction == 1);
-    }
-
-    Status WiredTigerIndex::initAsEmpty(OperationContext* txn) {
-        // No-op
-        return Status::OK();
-    }
-
-    const std::string &WiredTigerIndex::GetURI() const { return _uri; }
-
-    class WiredTigerBuilderImpl : public SortedDataBuilderInterface {
-    public:
-        WiredTigerBuilderImpl(WiredTigerIndex* idx,
-                              OperationContext *txn,
-                              bool dupsAllowed)
-            : _idx(idx), _txn(txn), _dupsAllowed(dupsAllowed), _count(0) {
-        }
-
-        ~WiredTigerBuilderImpl() {
-        }
-
-        Status addKey(const BSONObj& key, const DiskLoc& loc) {
-            Status s = _idx->insert(_txn, key, loc, _dupsAllowed);
-            if (s.isOK())
-                _count++;
-            return s;
-        }
-
-        void commit(bool mayInterrupt) {
-            // this is bizarre, but required as part of the contract
-            WriteUnitOfWork uow( _txn );
-            uow.commit();
-        }
-
-    private:
-        WiredTigerIndex* _idx;
-        OperationContext* _txn;
-        bool _dupsAllowed;
-        unsigned long long _count;
-    };
-
-    SortedDataBuilderInterface* WiredTigerIndex::getBulkBuilder( OperationContext* txn,
-                                                                 bool dupsAllowed ) {
-        if ( !dupsAllowed ) {
-            // if we don't allow dups, we better be unique
-            invariant( unique() );
-        }
-        return new WiredTigerBuilderImpl(this, txn, dupsAllowed);
     }
 
     // ------------------------------
@@ -502,10 +603,6 @@ namespace {
         if ( ret != WT_DUPLICATE_KEY )
             return wtRCToStatus( ret );
 
-        if ( !dupsAllowed ) {
-            return dupKeyError(key);
-        }
-
         // we're in weird mode where there might be multiple values
         // we put them all in the "list"
         ret = c->search(c);
@@ -514,21 +611,36 @@ namespace {
         WT_ITEM old;
         invariantWTOK( c->get_value(c, &old ) );
 
+        std::set<DiskLoc> all;
+
         // see if its already in the array
-        for ( int i = 0; i < (old.size/sizeof(DiskLoc)); i++ ) {
+        for ( size_t i = 0; i < (old.size/sizeof(DiskLoc)); i++ ) {
             DiskLoc temp;
             memcpy( &temp,
                     reinterpret_cast<const char*>( old.data ) + ( i * sizeof(DiskLoc) ),
                     sizeof(DiskLoc) );
             if ( loc == temp )
                 return Status::OK();
+            all.insert( temp );
         }
 
+        if ( !dupsAllowed ) {
+            return dupKeyError(key);
+        }
+
+        all.insert( loc );
+
         // not in the array, add it to the back
-        size_t newSize = old.size + sizeof(DiskLoc);
+        size_t newSize = all.size() * sizeof(DiskLoc);
         boost::scoped_array<char> bigger( new char[newSize] );
-        memcpy( bigger.get(), old.data, old.size );
-        memcpy( bigger.get() + old.size, &loc, sizeof(DiskLoc) );
+
+        size_t offset = 0;
+        for ( std::set<DiskLoc>::const_iterator it = all.begin(); it != all.end(); ++it ) {
+            DiskLoc dl = *it;
+            memcpy( bigger.get() + offset, &dl, sizeof(DiskLoc) );
+            offset += sizeof(DiskLoc);
+        }
+
         valueItem = WiredTigerItem( bigger.get(), newSize );
         c->set_value( c, valueItem.Get() );
         return wtRCToStatus( c->update( c ) );
@@ -538,10 +650,11 @@ namespace {
                                           const BSONObj& key,
                                           const DiskLoc& loc,
                                           bool dupsAllowed ) {
+        WiredTigerItem keyItem( key.objdata(), key.objsize() );
+        c->set_key( c, keyItem.Get() );
+
         if ( !dupsAllowed ) {
             // nice and clear
-            WiredTigerItem keyItem( key.objdata(), key.objsize() );
-            c->set_key( c, keyItem.Get() );
             int ret = c->remove(c);
             if (ret == WT_NOTFOUND) {
                 return false;
@@ -551,7 +664,46 @@ namespace {
         }
 
         // ewww
-        invariant( false );
+
+        int ret = c->search(c);
+        if ( ret == WT_NOTFOUND )
+            return false;
+        invariantWTOK( ret );
+
+        WT_ITEM old;
+        invariantWTOK( c->get_value(c, &old ) );
+
+        // see if its in the array
+        size_t num = old.size / sizeof(DiskLoc);
+        for ( size_t i = 0; i < num; i++ ) {
+            DiskLoc temp;
+            memcpy( &temp,
+                    reinterpret_cast<const char*>( old.data ) + ( i * sizeof(DiskLoc) ),
+                    sizeof(DiskLoc) );
+            if ( loc != temp )
+                continue;
+
+            // we found it, now lets re-save array without it
+            size_t newSize = old.size - sizeof(DiskLoc);
+
+            if ( newSize == 0 ) {
+                // nothing left, just delete entry
+                invariantWTOK( c->remove(c) );
+                return true;
+            }
+
+            boost::scoped_array<char> smaller( new char[newSize] );
+            size_t offset = i * sizeof(DiskLoc);
+            memcpy( smaller.get(), old.data, offset );
+            memcpy( smaller.get() + offset,
+                    reinterpret_cast<const char*>( old.data ) + offset + sizeof(DiskLoc),
+                    old.size - sizeof(DiskLoc) - offset );
+            WiredTigerItem valueItem = WiredTigerItem( smaller.get(), newSize );
+            c->set_value( c, valueItem.Get() );
+            invariantWTOK( c->update( c ) );
+            return true;
+        }
+        return false;
     }
 
 
